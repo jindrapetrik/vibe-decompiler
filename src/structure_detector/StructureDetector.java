@@ -1078,10 +1078,31 @@ public class StructureDetector {
      */
     private void generateBreakOrNodeStatement(Node node, StringBuilder sb, String indent,
                                                Map<Node, LoopStructure> loopHeaders, LoopStructure currentLoop) {
-        // Check if this node or its successor leads to exiting an outer loop
-        // For now, just output the node as a statement (it represents a break action)
-        // The node label like "break_loop_a" makes it clear what's happening
-        sb.append(indent).append(node.getLabel()).append(";\n");
+        // Check which loop this node is breaking out of (i.e., it's outside of that loop)
+        // Find the smallest loop that contains the currentLoop but doesn't contain this node
+        LoopStructure targetLoop = null;
+        
+        // First, check all loops to see which one this is breaking out of
+        for (LoopStructure loop : loopHeaders.values()) {
+            // Skip the current loop
+            if (loop == currentLoop) continue;
+            
+            // If this loop contains the current loop's header and doesn't contain the target node
+            if (loop.body.contains(currentLoop.header) && !loop.body.contains(node)) {
+                // Found a candidate - pick the innermost one (smallest body that still contains currentLoop)
+                if (targetLoop == null || loop.body.size() < targetLoop.body.size()) {
+                    targetLoop = loop;
+                }
+            }
+        }
+        
+        if (targetLoop != null) {
+            // Output "break loop_header;"
+            sb.append(indent).append("break ").append(targetLoop.header.getLabel()).append(";\n");
+        } else {
+            // Fallback: just output the node label as a statement
+            sb.append(indent).append(node.getLabel()).append(";\n");
+        }
     }
 
     /**
