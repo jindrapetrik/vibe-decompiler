@@ -789,6 +789,41 @@ public class StructureDetector {
             return;
         }
         
+        // Check for labeled break first (higher priority than regular break)
+        LabeledBreakEdge labeledBreak = labeledBreakEdges.get(node);
+        if (labeledBreak != null) {
+            IfStructure ifStruct = ifConditions.get(node);
+            if (ifStruct != null) {
+                sb.append(indent).append("if (").append(node.getLabel()).append(") {\n");
+                
+                // Determine which branch is the labeled break
+                if (ifStruct.trueBranch.equals(labeledBreak.to)) {
+                    sb.append(indent).append("    break ").append(labeledBreak.label).append(";\n");
+                    sb.append(indent).append("} else {\n");
+                    Set<Node> elseVisited = new HashSet<>(visited);
+                    elseVisited.add(node);
+                    generatePseudocodeInLoop(ifStruct.falseBranch, elseVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, currentLoop, currentBlock);
+                } else if (ifStruct.falseBranch.equals(labeledBreak.to)) {
+                    Set<Node> thenVisited = new HashSet<>(visited);
+                    thenVisited.add(node);
+                    generatePseudocodeInLoop(ifStruct.trueBranch, thenVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, currentLoop, currentBlock);
+                    sb.append(indent).append("} else {\n");
+                    sb.append(indent).append("    break ").append(labeledBreak.label).append(";\n");
+                } else {
+                    // Neither branch is the direct labeled break target, continue normally
+                    Set<Node> thenVisited = new HashSet<>(visited);
+                    thenVisited.add(node);
+                    generatePseudocodeInLoop(ifStruct.trueBranch, thenVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, currentLoop, currentBlock);
+                    sb.append(indent).append("} else {\n");
+                    Set<Node> elseVisited = new HashSet<>(visited);
+                    elseVisited.add(node);
+                    generatePseudocodeInLoop(ifStruct.falseBranch, elseVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, currentLoop, currentBlock);
+                }
+                sb.append(indent).append("}\n");
+                return;
+            }
+        }
+        
         // Check for break
         for (BreakEdge breakEdge : currentLoop.breaks) {
             if (breakEdge.from.equals(node)) {
@@ -1198,10 +1233,27 @@ public class StructureDetector {
         //   trace("hello");
         // }
         //
-        // In CFG form, continue loop_a goes to inc_c (c++), not directly to loop header
-        // break (inner) goes to inc_d (d++), exiting inner loop
-        // break loop_b goes to trace_hello, skipping d++
-        // break loop_a goes to exit
+        // Modeled with labeled blocks for continue semantics:
+        // while (loop_a_cond) {
+        //   loop_a_cont: {
+        //     while (loop_b_cond) {
+        //       loop_b_cont: {
+        //         while (inner_cond) {
+        //           inner_cont: {
+        //             if (e == 9) { break loop_b_cont; }  // break loop_b
+        //             if (e == 20) { break loop_a_cont; } // continue loop_a
+        //             if (e == 8) { break inner_cont; }   // break inner
+        //             break loop_a;
+        //           }
+        //           inc_e;
+        //         }
+        //       }
+        //       inc_d;
+        //     }
+        //     trace_hello;
+        //   }
+        //   inc_c;
+        // }
         System.out.println("\n===== Example 8: Complex Nested Loops with Labeled Breaks =====");
         StructureDetector detector8 = StructureDetector.fromGraphviz(
             "digraph {\n" +
@@ -1237,6 +1289,35 @@ public class StructureDetector {
             "  inc_c->loop_a_cond;\n" +                // c++ -> back to loop_a condition
             "}"
         );
+        
+        // Register labeled blocks for continue semantics
+        // loop_a_cont: wraps body before inc_c (for continue loop_a)
+        Node loopACont_start = null;
+        Node loopACont_end = null;  // inc_c is after the block
+        // loop_b_cont: wraps body before inc_d (for break loop_b / continue loop_b)
+        Node loopBCont_start = null;
+        Node loopBCont_end = null;  // inc_d is after the block
+        // inner_cont: wraps body before inc_e (for break inner)
+        Node innerCont_start = null;
+        Node innerCont_end = null;  // inc_d is where it breaks to
+        
+        for (Node n : detector8.allNodes) {
+            if (n.getLabel().equals("loop_b_cond")) loopACont_start = n;
+            if (n.getLabel().equals("inc_c")) loopACont_end = n;
+            if (n.getLabel().equals("inner_cond")) loopBCont_start = n;
+            if (n.getLabel().equals("inc_d")) loopBCont_end = n;
+            if (n.getLabel().equals("check_e9")) innerCont_start = n;
+        }
+        
+        // Register labeled block for continue loop_a (body before inc_c)
+        if (loopACont_start != null && loopACont_end != null) {
+            detector8.addLabeledBlock("loop_a_cont", loopACont_start, loopACont_end);
+        }
+        // Register labeled block for break loop_b (body before inc_d - but break loop_b skips to trace)
+        if (loopBCont_start != null && loopBCont_end != null) {
+            detector8.addLabeledBlock("loop_b_cont", loopBCont_start, loopBCont_end);
+        }
+        
         detector8.analyze();
         System.out.println("\n--- Pseudocode ---");
         System.out.println(detector8.toPseudocode());
