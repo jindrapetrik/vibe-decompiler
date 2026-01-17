@@ -341,35 +341,62 @@ public class StructureDetector {
     /**
      * Finds the merge node where two branches come together.
      * Uses post-dominator analysis simplified approach.
+     * Avoids false positives from loop back-edges by doing level-by-level BFS from both branches.
      */
     private Node findMergeNode(Node branch1, Node branch2) {
-        // Collect all nodes reachable from branch1
-        Set<Node> reachableFromBranch1 = getReachableNodes(branch1);
-        
-        // Find the first common node reachable from branch2 that is also reachable from branch1
-        Queue<Node> queue = new LinkedList<>();
-        Set<Node> visited = new HashSet<>();
-        queue.add(branch2);
-        visited.add(branch2);
-        
-        // Check if branch2 itself is reachable from branch1
-        if (reachableFromBranch1.contains(branch2)) {
+        // Special case: if one branch directly leads to the other
+        if (branch1.succs.contains(branch2)) {
             return branch2;
         }
-        // Check if branch1 is reachable from branch2 using early-exit search
-        if (isReachable(branch2, branch1)) {
+        if (branch2.succs.contains(branch1)) {
             return branch1;
         }
         
-        while (!queue.isEmpty()) {
-            Node current = queue.poll();
-            for (Node succ : current.succs) {
-                if (reachableFromBranch1.contains(succ)) {
-                    return succ;
+        // Do BFS from both branches simultaneously, looking for the first common node
+        // This avoids false positives from loop cycles
+        Set<Node> reachable1 = new HashSet<>();
+        Set<Node> reachable2 = new HashSet<>();
+        Queue<Node> queue1 = new LinkedList<>();
+        Queue<Node> queue2 = new LinkedList<>();
+        
+        reachable1.add(branch1);
+        reachable2.add(branch2);
+        queue1.add(branch1);
+        queue2.add(branch2);
+        
+        // If branches are the same, that's the merge
+        if (branch1.equals(branch2)) {
+            return branch1;
+        }
+        
+        // Expand both frontiers level by level, checking for intersection
+        int maxIterations = allNodes.size() * 2; // Prevent infinite loops
+        for (int i = 0; i < maxIterations && (!queue1.isEmpty() || !queue2.isEmpty()); i++) {
+            // Expand frontier 1
+            if (!queue1.isEmpty()) {
+                Node current = queue1.poll();
+                for (Node succ : current.succs) {
+                    if (reachable2.contains(succ)) {
+                        return succ; // Found common node
+                    }
+                    if (!reachable1.contains(succ)) {
+                        reachable1.add(succ);
+                        queue1.add(succ);
+                    }
                 }
-                if (!visited.contains(succ)) {
-                    visited.add(succ);
-                    queue.add(succ);
+            }
+            
+            // Expand frontier 2
+            if (!queue2.isEmpty()) {
+                Node current = queue2.poll();
+                for (Node succ : current.succs) {
+                    if (reachable1.contains(succ)) {
+                        return succ; // Found common node
+                    }
+                    if (!reachable2.contains(succ)) {
+                        reachable2.add(succ);
+                        queue2.add(succ);
+                    }
                 }
             }
         }
@@ -1037,7 +1064,20 @@ public class StructureDetector {
                                            Map<Node, LabeledBreakEdge> labeledBreakEdges,
                                            Map<Node, LabeledBlockStructure> blockStarts,
                                            LoopStructure currentLoop, LabeledBlockStructure currentBlock) {
+        generatePseudocodeInLoop(node, visited, sb, indent, loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock, null);
+    }
+    
+    private void generatePseudocodeInLoop(Node node, Set<Node> visited, StringBuilder sb, String indent,
+                                           Map<Node, LoopStructure> loopHeaders, Map<Node, IfStructure> ifConditions,
+                                           Map<Node, LabeledBreakEdge> labeledBreakEdges,
+                                           Map<Node, LabeledBlockStructure> blockStarts,
+                                           LoopStructure currentLoop, LabeledBlockStructure currentBlock, Node stopAt) {
         if (node == null || visited.contains(node)) {
+            return;
+        }
+        
+        // Stop at merge node if specified
+        if (stopAt != null && node.equals(stopAt)) {
             return;
         }
         
@@ -1266,7 +1306,7 @@ public class StructureDetector {
                 outputPathAndBreak(path, trueBranchTarget.breakLabel, sb, indent + "    ");
             } else {
                 Set<Node> trueVisited = new HashSet<>(visited);
-                generatePseudocodeInLoop(ifStruct.trueBranch, trueVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock);
+                generatePseudocodeInLoop(ifStruct.trueBranch, trueVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock, ifStruct.mergeNode);
             }
             
             sb.append(indent).append("} else {\n");
@@ -1279,14 +1319,14 @@ public class StructureDetector {
                 outputPathAndBreak(path, falseBranchTarget.breakLabel, sb, indent + "    ");
             } else {
                 Set<Node> falseVisited = new HashSet<>(visited);
-                generatePseudocodeInLoop(ifStruct.falseBranch, falseVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock);
+                generatePseudocodeInLoop(ifStruct.falseBranch, falseVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock, ifStruct.mergeNode);
             }
             
             sb.append(indent).append("}\n");
             
             if (ifStruct.mergeNode != null && currentLoop.body.contains(ifStruct.mergeNode)) {
                 Set<Node> mergeVisited = new HashSet<>(visited);
-                generatePseudocodeInLoop(ifStruct.mergeNode, mergeVisited, sb, indent, loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock);
+                generatePseudocodeInLoop(ifStruct.mergeNode, mergeVisited, sb, indent, loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock, stopAt);
             }
             return;
         }
@@ -1297,7 +1337,7 @@ public class StructureDetector {
         // Continue with successors inside the loop
         for (Node succ : node.succs) {
             if (currentLoop.body.contains(succ) && !succ.equals(currentLoop.header)) {
-                generatePseudocodeInLoop(succ, visited, sb, indent, loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock);
+                generatePseudocodeInLoop(succ, visited, sb, indent, loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock, stopAt);
             }
         }
     }
