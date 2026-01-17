@@ -581,11 +581,16 @@ public class StructureDetector {
 
     /**
      * Automatically detects labeled blocks needed for for-loop continue semantics.
-     * A labeled block is needed when there's an edge that jumps to a node INSIDE the loop body
-     * that is NOT the loop header, but leads back to the header.
+     * A labeled block is needed when there's an edge (direct or indirect) that jumps 
+     * to the back-edge source (increment node) from within the loop body.
      * 
      * This pattern occurs in for-loops where "continue" jumps to the increment,
      * not directly to the condition check.
+     * 
+     * Enhanced to detect:
+     * 1. Direct jumps to the back-edge source
+     * 2. Indirect paths through intermediate non-conditional nodes
+     * 3. Cross-loop continues (from inner loop to outer loop's increment)
      * 
      * @param loops the detected loops
      */
@@ -600,33 +605,31 @@ public class StructureDetector {
                 continue;
             }
             
-            // Find edges that go to the back-edge source from nodes OTHER than
-            // the normal predecessor chain. These are "skip" jumps (continue semantics).
-            Set<Node> abnormalJumps = new HashSet<>();
+            // Find all paths that lead to the back-edge source from conditional nodes
+            // These are "skip" jumps (continue semantics).
+            boolean needsLabeledBlock = false;
             
-            for (Node node : loop.body) {
-                // Skip the loop header - its edges to the body are normal flow
-                if (node.equals(loop.header)) {
+            // Check all nodes in ALL loops (not just this one) for paths to this loop's back-edge source
+            for (Node node : allNodes) {
+                // Skip the back-edge source itself and the loop header
+                if (node.equals(backEdgeSource) || node.equals(loop.header)) {
                     continue;
                 }
                 
-                for (Node succ : node.succs) {
-                    // If an edge goes to the back-edge source from a node inside the loop
-                    // (and this is not the normal flow to back-edge source)
-                    if (succ.equals(backEdgeSource)) {
-                        // Check if this node is "normally" before the back-edge source
-                        // A node is an "abnormal jump" if it's not a direct predecessor in the normal flow
-                        // We detect this by checking if the node has multiple successors (conditional)
-                        // and one of them is the back-edge source
-                        if (node.succs.size() > 1) {
-                            abnormalJumps.add(node);
-                        }
+                // Check if this node leads (directly or indirectly) to the back-edge source
+                // via a path that doesn't go through the loop header
+                if (leadsToBackEdgeSource(node, backEdgeSource, loop.header)) {
+                    // This node eventually reaches the back-edge source
+                    // If it's a conditional node (has 2 successors), it might be a continue pattern
+                    if (node.succs.size() >= 2) {
+                        needsLabeledBlock = true;
+                        break;
                     }
                 }
             }
             
-            // If there are abnormal jumps to the back-edge source, we need a labeled block
-            if (!abnormalJumps.isEmpty()) {
+            // If there are paths to the back-edge source, we need a labeled block
+            if (needsLabeledBlock) {
                 // Find the start of the loop body (first node after header that enters the body)
                 Node bodyStart = null;
                 for (Node succ : loop.header.succs) {
@@ -655,6 +658,42 @@ public class StructureDetector {
                 }
             }
         }
+    }
+    
+    /**
+     * Checks if a node leads to a back-edge source through a path that doesn't go through the header.
+     * The path must be a single-successor chain (no branching) from this node's successor to the target.
+     */
+    private boolean leadsToBackEdgeSource(Node node, Node backEdgeSource, Node header) {
+        for (Node succ : node.succs) {
+            // Follow single-successor chains to see if they reach the back-edge source
+            Node current = succ;
+            Set<Node> visited = new HashSet<>();
+            
+            while (current != null && !visited.contains(current)) {
+                visited.add(current);
+                
+                // Found the back-edge source
+                if (current.equals(backEdgeSource)) {
+                    return true;
+                }
+                
+                // Don't go through the header
+                if (current.equals(header)) {
+                    break;
+                }
+                
+                // Only follow single-successor chains (non-conditional nodes)
+                // This detects paths like: check_e20 -> trace_Y -> inc_c
+                if (current.succs.size() == 1) {
+                    current = current.succs.get(0);
+                } else {
+                    // Multi-branch node - stop following
+                    break;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -961,36 +1000,33 @@ public class StructureDetector {
                     sb.append(indent).append("if (").append(node.getLabel()).append(") {\n");
                     
                     // Check if true branch leads to a break (possibly through intermediate nodes)
-                    Node trueBranchBreakTarget = findBreakTarget(ifStruct.trueBranch, currentLoop, ifConditions);
-                    if (trueBranchBreakTarget != null) {
+                    BranchTargetResult trueBranchTarget = findBranchTarget(ifStruct.trueBranch, currentLoop, ifConditions, loopHeaders);
+                    if (trueBranchTarget != null) {
                         // True branch leads to a break - output path and break statement
-                        List<Node> path = findPathToTarget(ifStruct.trueBranch, trueBranchBreakTarget, ifConditions);
-                        String breakLabel = findBreakLabel(trueBranchBreakTarget, loopHeaders, currentLoop);
-                        outputPathAndBreak(path, breakLabel, sb, indent + "    ");
+                        List<Node> path = findPathToTarget(ifStruct.trueBranch, trueBranchTarget.target, ifConditions);
+                        outputPathAndBreak(path, trueBranchTarget.breakLabel, sb, indent + "    ");
                         sb.append(indent).append("} else {\n");
                         Set<Node> elseVisited = new HashSet<>(visited);
                         elseVisited.add(node);
                         // Check if false branch also leads to a break
-                        Node falseBranchBreakTarget = findBreakTarget(ifStruct.falseBranch, currentLoop, ifConditions);
-                        if (falseBranchBreakTarget != null) {
-                            List<Node> falsePath = findPathToTarget(ifStruct.falseBranch, falseBranchBreakTarget, ifConditions);
-                            String falseBreakLabel = findBreakLabel(falseBranchBreakTarget, loopHeaders, currentLoop);
-                            outputPathAndBreak(falsePath, falseBreakLabel, sb, indent + "    ");
+                        BranchTargetResult falseBranchTarget = findBranchTarget(ifStruct.falseBranch, currentLoop, ifConditions, loopHeaders);
+                        if (falseBranchTarget != null) {
+                            List<Node> falsePath = findPathToTarget(ifStruct.falseBranch, falseBranchTarget.target, ifConditions);
+                            outputPathAndBreak(falsePath, falseBranchTarget.breakLabel, sb, indent + "    ");
                         } else {
                             generatePseudocodeInLoop(ifStruct.falseBranch, elseVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock);
                         }
                     } else {
                         // Check if false branch leads to a break
-                        Node falseBranchBreakTarget = findBreakTarget(ifStruct.falseBranch, currentLoop, ifConditions);
-                        if (falseBranchBreakTarget != null) {
+                        BranchTargetResult falseBranchTarget = findBranchTarget(ifStruct.falseBranch, currentLoop, ifConditions, loopHeaders);
+                        if (falseBranchTarget != null) {
                             // True branch doesn't break, false branch does
                             Set<Node> thenVisited = new HashSet<>(visited);
                             thenVisited.add(node);
                             generatePseudocodeInLoop(ifStruct.trueBranch, thenVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock);
                             sb.append(indent).append("} else {\n");
-                            List<Node> falsePath = findPathToTarget(ifStruct.falseBranch, falseBranchBreakTarget, ifConditions);
-                            String falseBreakLabel = findBreakLabel(falseBranchBreakTarget, loopHeaders, currentLoop);
-                            outputPathAndBreak(falsePath, falseBreakLabel, sb, indent + "    ");
+                            List<Node> falsePath = findPathToTarget(ifStruct.falseBranch, falseBranchTarget.target, ifConditions);
+                            outputPathAndBreak(falsePath, falseBranchTarget.breakLabel, sb, indent + "    ");
                         } else {
                             // Neither branch leads to a break through my detection - fall back to original logic
                             if (!currentLoop.body.contains(ifStruct.trueBranch)) {
@@ -1078,12 +1114,11 @@ public class StructureDetector {
             sb.append(indent).append("if (").append(node.getLabel()).append(") {\n");
             
             // Check if true branch leads to a break (possibly through intermediate nodes)
-            Node trueBranchBreakTarget = findBreakTarget(ifStruct.trueBranch, currentLoop, ifConditions);
-            if (trueBranchBreakTarget != null) {
+            BranchTargetResult trueBranchTarget = findBranchTarget(ifStruct.trueBranch, currentLoop, ifConditions, loopHeaders);
+            if (trueBranchTarget != null) {
                 // True branch leads to a break - output path and break statement
-                List<Node> path = findPathToTarget(ifStruct.trueBranch, trueBranchBreakTarget, ifConditions);
-                String breakLabel = findBreakLabel(trueBranchBreakTarget, loopHeaders, currentLoop);
-                outputPathAndBreak(path, breakLabel, sb, indent + "    ");
+                List<Node> path = findPathToTarget(ifStruct.trueBranch, trueBranchTarget.target, ifConditions);
+                outputPathAndBreak(path, trueBranchTarget.breakLabel, sb, indent + "    ");
             } else {
                 Set<Node> trueVisited = new HashSet<>(visited);
                 generatePseudocodeInLoop(ifStruct.trueBranch, trueVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock);
@@ -1092,12 +1127,11 @@ public class StructureDetector {
             sb.append(indent).append("} else {\n");
             
             // Check if false branch leads to a break (possibly through intermediate nodes)
-            Node falseBranchBreakTarget = findBreakTarget(ifStruct.falseBranch, currentLoop, ifConditions);
-            if (falseBranchBreakTarget != null) {
+            BranchTargetResult falseBranchTarget = findBranchTarget(ifStruct.falseBranch, currentLoop, ifConditions, loopHeaders);
+            if (falseBranchTarget != null) {
                 // False branch leads to a break - output path and break statement
-                List<Node> path = findPathToTarget(ifStruct.falseBranch, falseBranchBreakTarget, ifConditions);
-                String breakLabel = findBreakLabel(falseBranchBreakTarget, loopHeaders, currentLoop);
-                outputPathAndBreak(path, breakLabel, sb, indent + "    ");
+                List<Node> path = findPathToTarget(ifStruct.falseBranch, falseBranchTarget.target, ifConditions);
+                outputPathAndBreak(path, falseBranchTarget.breakLabel, sb, indent + "    ");
             } else {
                 Set<Node> falseVisited = new HashSet<>(visited);
                 generatePseudocodeInLoop(ifStruct.falseBranch, falseVisited, sb, indent + "    ", loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock);
@@ -1303,6 +1337,113 @@ public class StructureDetector {
         
         // Breaking out of current loop (or can't determine)
         return "";
+    }
+
+    /**
+     * Represents the result of analyzing a branch target - either a break out of the loop,
+     * a break to a labeled block, or a normal flow.
+     */
+    private static class BranchTargetResult {
+        final Node target;           // The target node (break destination or labeled block end)
+        final String breakLabel;     // The break label to use (loop header or block label)
+        final boolean isLabeledBlockBreak; // True if this is a break to a labeled block end node
+        
+        BranchTargetResult(Node target, String breakLabel, boolean isLabeledBlockBreak) {
+            this.target = target;
+            this.breakLabel = breakLabel;
+            this.isLabeledBlockBreak = isLabeledBlockBreak;
+        }
+    }
+
+    /**
+     * Finds if a path from start leads to a break target (outside loop or labeled block end).
+     * Returns a BranchTargetResult with the target and appropriate label, or null if normal flow.
+     * 
+     * The target is the "significant" node where the break leads - this is used to determine
+     * the break label. The path from start to target contains intermediate nodes to output.
+     * 
+     * Priority:
+     * 1. Labeled block end node (break to that block) - highest priority
+     * 2. Loop's natural exit point (the merge node of the loop condition)
+     * 3. Outer loop header or structure
+     * 4. Exit node
+     */
+    private BranchTargetResult findBranchTarget(Node start, LoopStructure currentLoop, 
+                                                 Map<Node, IfStructure> ifConditions,
+                                                 Map<Node, LoopStructure> loopHeaders) {
+        Node current = start;
+        Set<Node> visited = new HashSet<>();
+        boolean foundOutsideLoop = false;
+        
+        // Find the loop's natural exit point (the false branch of the loop condition)
+        Node loopExitPoint = null;
+        IfStructure loopCondIf = ifConditions.get(currentLoop.header);
+        if (loopCondIf != null) {
+            loopExitPoint = loopCondIf.falseBranch;
+        }
+        
+        while (current != null && !visited.contains(current)) {
+            visited.add(current);
+            
+            // If this is a conditional node inside the loop, stop - no break path
+            if (ifConditions.containsKey(current) && currentLoop.body.contains(current)) {
+                return null;
+            }
+            
+            // Track if we've gone outside the loop
+            if (!currentLoop.body.contains(current)) {
+                foundOutsideLoop = true;
+            }
+            
+            // Check if this is the loop's natural exit point
+            // This should be reported as a simple break (without label for innermost loop)
+            if (current.equals(loopExitPoint)) {
+                return new BranchTargetResult(current, "", false);
+            }
+            
+            // Check if this node is a labeled block's end node
+            // This takes priority because it represents continue semantics
+            for (LabeledBlockStructure block : labeledBlocks) {
+                if (current.equals(block.endNode)) {
+                    // This path leads to a labeled block's end node - it's a break to that block
+                    return new BranchTargetResult(current, block.label, true);
+                }
+            }
+            
+            // If we're outside the loop and hit a conditional (like outer loop header), stop
+            if (foundOutsideLoop && ifConditions.containsKey(current)) {
+                String breakLabel = findBreakLabel(current, loopHeaders, currentLoop);
+                return new BranchTargetResult(current, breakLabel, false);
+            }
+            
+            // If this node has no successors (end node like 'exit'), it's the target
+            if (current.succs.isEmpty()) {
+                if (foundOutsideLoop) {
+                    String breakLabel = findBreakLabel(current, loopHeaders, currentLoop);
+                    return new BranchTargetResult(current, breakLabel, false);
+                }
+                return null;
+            }
+            
+            // If this is the loop header, stop - we've gone back to the loop condition
+            if (current.equals(currentLoop.header)) {
+                return null;
+            }
+            
+            // Follow single-successor chains only (non-conditional nodes)
+            if (current.succs.size() == 1) {
+                current = current.succs.get(0);
+            } else {
+                // Multiple successors (conditional) - if we're already outside, this is the target
+                if (foundOutsideLoop) {
+                    String breakLabel = findBreakLabel(current, loopHeaders, currentLoop);
+                    return new BranchTargetResult(current, breakLabel, false);
+                }
+                return null;
+            }
+        }
+        
+        return null;
     }
 
     /**
