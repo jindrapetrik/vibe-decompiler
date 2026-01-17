@@ -1185,18 +1185,16 @@ public class StructureDetector {
         
         // Example 8: Complex nested loops with labeled breaks and continues
         // Represents:
-        // loop182: {
-        //   loop_a: for (var c:* = 0; c < 8; c = c + 1) {
-        //     loop_b: for (var d:* = 0; d < 25; d++) {
-        //       for (var e:* = 0; e < 50; e++) {
-        //         if (e == 9) { break loop_b; }
-        //         if (e == 20) { continue loop_a; }
-        //         if (e == 8) { break; }
-        //         break loop182;
-        //       }
+        // loop_a: for (var c:* = 0; c < 8; c = c + 1) {
+        //   loop_b: for (var d:* = 0; d < 25; d++) {
+        //     for (var e:* = 0; e < 50; e++) {
+        //       if (e == 9) { break loop_b; }
+        //       if (e == 20) { continue loop_a; }
+        //       if (e == 8) { break; }
+        //       break loop_a;
         //     }
-        //     trace("hello");
         //   }
+        //   trace("hello");
         // }
         System.out.println("\n===== Example 8: Complex Nested Loops with Labeled Breaks =====");
         StructureDetector detector8 = StructureDetector.fromGraphviz(
@@ -1219,23 +1217,13 @@ public class StructureDetector {
             "  check_e20->check_e8;\n" +               // else continue
             // if (e == 8) { break; }
             "  check_e8->loop_b_header;\n" +           // break (inner) -> back to loop_b header
-            "  check_e8->break_loop182;\n" +           // else -> break loop182
-            // break loop182 - exits everything
-            "  break_loop182->exit;\n" +
+            "  check_e8->break_loop_a;\n" +            // else -> break loop_a
+            // break loop_a - exits outer loop entirely
+            "  break_loop_a->exit;\n" +
             // trace("hello") at end of loop_a body
             "  trace_hello->loop_a_header;\n" +        // back edge to loop_a
             "}"
         );
-        // Register loop182 as a labeled block that wraps the entire loop structure
-        Node loop182Start = null;
-        Node loop182End = null;
-        for (Node n : detector8.allNodes) {
-            if (n.getLabel().equals("loop_a_header")) loop182Start = n;
-            if (n.getLabel().equals("exit")) loop182End = n;
-        }
-        if (loop182Start != null && loop182End != null) {
-            detector8.addLabeledBlock("loop182", loop182Start, loop182End);
-        }
         detector8.analyze();
         System.out.println("\n--- Pseudocode ---");
         System.out.println(detector8.toPseudocode());
