@@ -1134,6 +1134,45 @@ public class StructureDetector {
             return;
         }
         
+        // Check if this is a nested loop header (before checking breaks/continues)
+        LoopStructure nestedLoop = loopHeaders.get(node);
+        if (nestedLoop != null && nestedLoop != currentLoop) {
+            visited.add(node);
+            Node loopContinue = null;
+            Node loopExit = null;
+            for (Node succ : node.succs) {
+                if (nestedLoop.body.contains(succ) && !succ.equals(node)) {
+                    loopContinue = succ;
+                } else if (!nestedLoop.body.contains(succ)) {
+                    loopExit = succ;
+                }
+            }
+            
+            // Use while(true) style with condition check inside
+            sb.append(indent).append("while(true) {\n");
+            String innerIndent = indent + "    ";
+            
+            // If header has 2 successors (condition check), output the break condition first
+            if (loopExit != null && node.succs.size() == 2) {
+                sb.append(innerIndent).append("if (!").append(node.getLabel()).append(") {\n");
+                sb.append(innerIndent).append("    break;\n");
+                sb.append(innerIndent).append("}\n");
+            }
+            
+            if (loopContinue != null) {
+                Set<Node> nestedVisited = new HashSet<>();
+                nestedVisited.add(node);
+                generatePseudocodeInLoop(loopContinue, nestedVisited, sb, innerIndent, loopHeaders, ifConditions, labeledBreakEdges, blockStarts, nestedLoop, currentBlock);
+            }
+            
+            sb.append(indent).append("}\n");
+            
+            if (loopExit != null && currentLoop.body.contains(loopExit)) {
+                generatePseudocodeInLoop(loopExit, visited, sb, indent, loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock);
+            }
+            return;
+        }
+        
         // Check for labeled break first (higher priority than regular break)
         LabeledBreakEdge labeledBreak = labeledBreakEdges.get(node);
         if (labeledBreak != null) {
@@ -1314,44 +1353,6 @@ public class StructureDetector {
         }
         
         visited.add(node);
-        
-        // Check if this is a nested loop header
-        LoopStructure nestedLoop = loopHeaders.get(node);
-        if (nestedLoop != null && nestedLoop != currentLoop) {
-            Node loopContinue = null;
-            Node loopExit = null;
-            for (Node succ : node.succs) {
-                if (nestedLoop.body.contains(succ) && !succ.equals(node)) {
-                    loopContinue = succ;
-                } else if (!nestedLoop.body.contains(succ)) {
-                    loopExit = succ;
-                }
-            }
-            
-            // Use while(true) style with condition check inside
-            sb.append(indent).append("while(true) {\n");
-            String innerIndent = indent + "    ";
-            
-            // If header has 2 successors (condition check), output the break condition first
-            if (loopExit != null && node.succs.size() == 2) {
-                sb.append(innerIndent).append("if (!").append(node.getLabel()).append(") {\n");
-                sb.append(innerIndent).append("    break;\n");
-                sb.append(innerIndent).append("}\n");
-            }
-            
-            if (loopContinue != null) {
-                Set<Node> nestedVisited = new HashSet<>();
-                nestedVisited.add(node);
-                generatePseudocodeInLoop(loopContinue, nestedVisited, sb, innerIndent, loopHeaders, ifConditions, labeledBreakEdges, blockStarts, nestedLoop, currentBlock);
-            }
-            
-            sb.append(indent).append("}\n");
-            
-            if (loopExit != null && currentLoop.body.contains(loopExit)) {
-                generatePseudocodeInLoop(loopExit, visited, sb, indent, loopHeaders, ifConditions, labeledBreakEdges, blockStarts, currentLoop, currentBlock);
-            }
-            return;
-        }
         
         // Check if this is an if condition inside the loop
         IfStructure ifStruct = ifConditions.get(node);
