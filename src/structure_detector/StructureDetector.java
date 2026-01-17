@@ -1184,44 +1184,57 @@ public class StructureDetector {
         System.out.println(detector7.toGraphviz());
         
         // Example 8: Complex nested loops with labeled breaks and continues
-        // Represents:
-        // loop_a: for (var c:* = 0; c < 8; c = c + 1) {
-        //   loop_b: for (var d:* = 0; d < 25; d++) {
-        //     for (var e:* = 0; e < 50; e++) {
+        // Represents a for loop as while with proper increment handling:
+        //
+        // loop_a: for (var c = 0; c < 8; c = c + 1) {
+        //   loop_b: for (var d = 0; d < 25; d++) {
+        //     for (var e = 0; e < 50; e++) {
         //       if (e == 9) { break loop_b; }
-        //       if (e == 20) { continue loop_a; }
-        //       if (e == 8) { break; }
+        //       if (e == 20) { continue loop_a; }  // goes to c = c + 1
+        //       if (e == 8) { break; }             // goes to d++
         //       break loop_a;
         //     }
         //   }
         //   trace("hello");
         // }
+        //
+        // In CFG form, continue loop_a goes to inc_c (c++), not directly to loop header
+        // break (inner) goes to inc_d (d++), exiting inner loop
+        // break loop_b goes to trace_hello, skipping d++
+        // break loop_a goes to exit
         System.out.println("\n===== Example 8: Complex Nested Loops with Labeled Breaks =====");
         StructureDetector detector8 = StructureDetector.fromGraphviz(
             "digraph {\n" +
-            "  entry->loop_a_header;\n" +
-            // loop_a: outer for loop
-            "  loop_a_header->loop_b_header;\n" +      // enter loop_a body -> loop_b
-            "  loop_a_header->exit;\n" +               // loop_a condition false -> exit
-            // loop_b: middle for loop  
-            "  loop_b_header->inner_header;\n" +       // enter loop_b body -> inner loop
-            "  loop_b_header->trace_hello;\n" +        // loop_b done -> trace("hello")
-            // inner: anonymous innermost for loop
-            "  inner_header->check_e9;\n" +            // enter inner body
-            "  inner_header->loop_b_header;\n" +       // inner loop done -> back to loop_b
+            "  entry->loop_a_cond;\n" +
+            // loop_a: outer for loop condition
+            "  loop_a_cond->loop_b_cond;\n" +          // c < 8 -> enter body (loop_b)
+            "  loop_a_cond->exit;\n" +                 // c >= 8 -> exit
+            // loop_b: middle for loop condition
+            "  loop_b_cond->inner_cond;\n" +           // d < 25 -> enter inner
+            "  loop_b_cond->trace_hello;\n" +          // d >= 25 -> trace (after loop_b)
+            // inner: anonymous innermost for loop condition
+            "  inner_cond->check_e9;\n" +              // e < 50 -> enter body
+            "  inner_cond->inc_d;\n" +                 // e >= 50 -> d++ (exit inner normally)
             // if (e == 9) { break loop_b; }
-            "  check_e9->trace_hello;\n" +             // break loop_b -> goes to trace (after loop_b)
+            "  check_e9->trace_hello;\n" +             // break loop_b -> trace (skip d++)
             "  check_e9->check_e20;\n" +               // else continue
-            // if (e == 20) { continue loop_a; }
-            "  check_e20->loop_a_header;\n" +          // continue loop_a -> back to loop_a header
+            // if (e == 20) { continue loop_a; } -> goes to c++
+            "  check_e20->inc_c;\n" +                  // continue loop_a -> c++
             "  check_e20->check_e8;\n" +               // else continue
-            // if (e == 8) { break; }
-            "  check_e8->loop_b_header;\n" +           // break (inner) -> back to loop_b header
+            // if (e == 8) { break; } -> goes to d++ (exit inner)
+            "  check_e8->inc_d;\n" +                   // break inner -> d++
             "  check_e8->break_loop_a;\n" +            // else -> break loop_a
             // break loop_a - exits outer loop entirely
             "  break_loop_a->exit;\n" +
+            // inner loop: normal body end goes to e++
+            // (all code paths in this example break/continue, so no normal path to inc_e)
+            "  inc_e->inner_cond;\n" +                 // e++ -> back to inner condition
+            // loop_b: d++ after inner loop exits normally
+            "  inc_d->loop_b_cond;\n" +                // d++ -> back to loop_b condition
             // trace("hello") at end of loop_a body
-            "  trace_hello->loop_a_header;\n" +        // back edge to loop_a
+            "  trace_hello->inc_c;\n" +                // trace -> c++
+            // loop_a: c++ at end of iteration
+            "  inc_c->loop_a_cond;\n" +                // c++ -> back to loop_a condition
             "}"
         );
         detector8.analyze();
