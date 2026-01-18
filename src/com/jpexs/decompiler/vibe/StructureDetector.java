@@ -3299,7 +3299,7 @@ public class StructureDetector {
                 }
             }
             
-            result.add(new SwitchStatement(switchCases));
+            result.add(new SwitchStatement(switchCases, getSwitchLabelId(node)));
             
             // Mark all switch condition nodes as visited
             for (SwitchCase sc : switchStruct.cases) {
