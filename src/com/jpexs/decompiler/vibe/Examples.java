@@ -1,9 +1,9 @@
-package structure_detector;
+package com.jpexs.decompiler.vibe;
 
-import structure_detector.StructureDetector.IfStructure;
-import structure_detector.StructureDetector.LoopStructure;
-import structure_detector.StructureDetector.LabeledBlockStructure;
-import structure_detector.StructureDetector.TryStructure;
+import com.jpexs.decompiler.vibe.StructureDetector.IfStructure;
+import com.jpexs.decompiler.vibe.StructureDetector.LoopStructure;
+import com.jpexs.decompiler.vibe.StructureDetector.LabeledBlockStructure;
+import com.jpexs.decompiler.vibe.StructureDetector.TryStructure;
 
 /**
  * Contains example demonstrations for the StructureDetector.

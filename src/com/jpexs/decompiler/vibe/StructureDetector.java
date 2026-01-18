@@ -1,7 +1,15 @@
-package structure_detector;
+package com.jpexs.decompiler.vibe;
 
+import com.jpexs.decompiler.vibe.statement.IfStatement;
+import com.jpexs.decompiler.vibe.statement.SwitchStatement;
+import com.jpexs.decompiler.vibe.statement.LoopStatement;
+import com.jpexs.decompiler.vibe.statement.TryStatement;
+import com.jpexs.decompiler.vibe.statement.ExpressionStatement;
+import com.jpexs.decompiler.vibe.statement.BlockStatement;
+import com.jpexs.decompiler.vibe.statement.ContinueStatement;
+import com.jpexs.decompiler.vibe.statement.BreakStatement;
+import com.jpexs.decompiler.vibe.statement.Statement;
 import java.util.*;
-import structure_detector.statement.*;
 
 /**
  * Detects control flow structures in a Control Flow Graph (CFG).

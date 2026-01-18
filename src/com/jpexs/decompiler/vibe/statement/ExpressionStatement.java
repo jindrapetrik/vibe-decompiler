@@ -1,6 +1,6 @@
-package structure_detector.statement;
+package com.jpexs.decompiler.vibe.statement;
 
-import structure_detector.Node;
+import com.jpexs.decompiler.vibe.Node;
 
 /**
  * Represents a simple expression statement (like a node label followed by semicolon).
