@@ -79,26 +79,26 @@ public class StructureDetector {
     
     /**
      * Gets or assigns a loop label for a given loop header node.
-     * Uses global counter for sequential naming (loop0, loop1, etc.).
+     * Uses global counter for sequential naming (loop_0, loop_1, etc.).
      */
     private String getLoopLabel(Node loopHeader) {
-        return loopLabels.computeIfAbsent(loopHeader, k -> "loop" + globalLabelCounter++);
+        return loopLabels.computeIfAbsent(loopHeader, k -> "loop_" + globalLabelCounter++);
     }
     
     /**
      * Gets or assigns a switch label for a given switch start node.
-     * Uses global counter for sequential naming with loop prefix (loop0, loop1, etc.).
+     * Uses global counter for sequential naming with loop prefix (loop_0, loop_1, etc.).
      */
     private String getSwitchLabel(Node switchStart) {
-        return loopLabels.computeIfAbsent(switchStart, k -> "loop" + globalLabelCounter++);
+        return loopLabels.computeIfAbsent(switchStart, k -> "loop_" + globalLabelCounter++);
     }
     
     /**
-     * Gets the mapped block label, converting old-style (node_block) to new-style (block0).
+     * Gets the mapped block label, converting old-style (node_block) to new-style (block_0).
      * If no mapping exists, creates a new one with the global counter.
      */
     private String getBlockLabel(String oldLabel) {
-        return blockLabelMapping.computeIfAbsent(oldLabel, k -> "block" + globalLabelCounter++);
+        return blockLabelMapping.computeIfAbsent(oldLabel, k -> "block_" + globalLabelCounter++);
     }
     
     /**

@@ -246,12 +246,12 @@ public class Examples {
             "  ifa->x;\n" +
             "  ifa->A1;\n" +
             "  x->ifc;\n" +
+            "  A1->d;\n" +
             "  ifc->y;\n" +
             "  ifc->z;\n" +
+            "  d->A2;\n" +
             "  y->A2;\n" +
             "  z->A1;\n" +
-            "  A1->d;\n" +
-            "  d->A2;\n" +
             "  A2->start2;\n" +
             "  start2->ifex2;\n" +
             "  ifex2->end;\n" +
@@ -259,12 +259,12 @@ public class Examples {
             "  ifa2->x2;\n" +
             "  ifa2->A12;\n" +
             "  x2->ifc2;\n" +
+            "  A12->d2;\n" +
             "  ifc2->y2;\n" +
             "  ifc2->z2;\n" +
+            "  d2->A22;\n" +
             "  y2->A22;\n" +
             "  z2->A12;\n" +
-            "  A12->d2;\n" +
-            "  d2->A22;\n" +
             "  A22->start3;\n" +
             "  start3->ifex3;\n" +
             "  ifex3->end;\n" +
@@ -272,12 +272,12 @@ public class Examples {
             "  ifa3->x3;\n" +
             "  ifa3->A13;\n" +
             "  x3->ifc3;\n" +
+            "  A13->d3;\n" +
             "  ifc3->y3;\n" +
             "  ifc3->z3;\n" +
+            "  d3->A23;\n" +
             "  y3->A23;\n" +
             "  z3->A13;\n" +
-            "  A13->d3;\n" +
-            "  d3->A23;\n" +
             "  A23->start2;\n" +
             "}",
             true
