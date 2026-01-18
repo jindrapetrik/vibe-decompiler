@@ -2064,28 +2064,29 @@ public class StructureDetector {
      * Returns the loop header label with _loop suffix if breaking to an outer loop, empty string for current loop break.
      */
     private String findBreakLabel(Node breakTarget, Map<Node, LoopStructure> loopHeaders, LoopStructure currentLoop) {
-        return findBreakLabelInfo(breakTarget, loopHeaders, currentLoop)[0];
+        Node loopNode = findBreakLabelLoop(breakTarget, loopHeaders, currentLoop);
+        return loopNode != null ? getLoopLabel(loopNode) : "";
     }
     
     private int findBreakLabelId(Node breakTarget, Map<Node, LoopStructure> loopHeaders, LoopStructure currentLoop) {
-        String idStr = findBreakLabelInfo(breakTarget, loopHeaders, currentLoop)[1];
-        return idStr.isEmpty() ? -1 : Integer.parseInt(idStr);
+        Node loopNode = findBreakLabelLoop(breakTarget, loopHeaders, currentLoop);
+        return loopNode != null ? getLoopLabelId(loopNode) : -1;
     }
     
-    private String[] findBreakLabelInfo(Node breakTarget, Map<Node, LoopStructure> loopHeaders, LoopStructure currentLoop) {
+    private Node findBreakLabelLoop(Node breakTarget, Map<Node, LoopStructure> loopHeaders, LoopStructure currentLoop) {
         // Check which loop this target is outside of
         for (LoopStructure loop : loopHeaders.values()) {
             if (loop == currentLoop) continue;
             
             // If this loop contains the current loop and the target is outside this loop
             if (loop.body.contains(currentLoop.header) && !loop.body.contains(breakTarget)) {
-                // Return loop label and ID (e.g., "loop0", "0")
-                return new String[] { getLoopLabel(loop.header), String.valueOf(getLoopLabelId(loop.header)) };
+                // Return loop header node
+                return loop.header;
             }
         }
         
         // Breaking out of current loop (or can't determine) - no label needed
-        return new String[] { "", "" };
+        return null;
     }
 
     /**
