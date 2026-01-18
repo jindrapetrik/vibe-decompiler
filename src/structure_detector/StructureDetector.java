@@ -187,13 +187,19 @@ public class StructureDetector {
      */
     public static class SwitchCase {
         public final Node conditionNode;  // the condition node (e.g., "if1")
-        public final Node caseBody;       // the case body node (e.g., "case1")
+        public final Node caseBody;       // the case body node (e.g., "case1"), null for label-only merged cases
         public final boolean isDefault;   // true if this is the default case
+        public final boolean hasBreak;    // true if this case should have a break statement
         
         public SwitchCase(Node conditionNode, Node caseBody, boolean isDefault) {
+            this(conditionNode, caseBody, isDefault, true);
+        }
+        
+        public SwitchCase(Node conditionNode, Node caseBody, boolean isDefault, boolean hasBreak) {
             this.conditionNode = conditionNode;
             this.caseBody = caseBody;
             this.isDefault = isDefault;
+            this.hasBreak = hasBreak;
         }
         
         @Override
@@ -2354,12 +2360,14 @@ public class StructureDetector {
             
             for (SwitchCase sc : switchStruct.cases) {
                 List<Statement> caseBody = new ArrayList<>();
-                // Add the case body node as a statement
+                // Add the case body node as a statement (only if there's a body)
                 if (sc.caseBody != null) {
                     caseBody.add(new ExpressionStatement(sc.caseBody.getLabel()));
                 }
-                // Add break statement
-                caseBody.add(new BreakStatement());
+                // Add break statement only if this case has a break
+                if (sc.hasBreak) {
+                    caseBody.add(new BreakStatement());
+                }
                 
                 if (sc.isDefault) {
                     switchCases.add(new SwitchStatement.Case(caseBody));
@@ -3255,83 +3263,108 @@ public class StructureDetector {
             }
             
             // Try to build a switch chain starting from this condition
-            List<SwitchCase> cases = new ArrayList<>();
+            // First pass: collect all conditions and their case bodies
+            List<Node> conditionChain = new ArrayList<>();
+            List<Node> caseBodies = new ArrayList<>();
             Node currentCond = startCond;
-            Node mergeNode = null;
+            Node defaultBody = null;
             
             while (currentCond != null && !processedNodes.contains(currentCond)) {
-                // Find the if structure for this condition using the lookup map
                 IfStructure currentIf = ifMap.get(currentCond);
                 
                 if (currentIf == null || currentIf.trueBranch == null || currentIf.falseBranch == null) {
                     break;
                 }
                 
-                Node trueBranch = currentIf.trueBranch;
-                Node falseBranch = currentIf.falseBranch;
+                conditionChain.add(currentCond);
+                caseBodies.add(currentIf.trueBranch);
                 
-                // In switch pattern: true branch is the case body
-                Node caseBody = trueBranch;
-                cases.add(new SwitchCase(currentCond, caseBody, false));
-                
-                // Check if false branch is another condition (chain continues)
-                if (conditionNodes.contains(falseBranch)) {
-                    currentCond = falseBranch;
+                if (conditionNodes.contains(currentIf.falseBranch)) {
+                    currentCond = currentIf.falseBranch;
                 } else {
-                    // False branch is the default case (last in the chain)
-                    cases.add(new SwitchCase(null, falseBranch, true));
-                    
-                    // Find the merge node - should be reachable from all case bodies
-                    Set<Node> allCaseBodies = new HashSet<>();
-                    for (SwitchCase sc : cases) {
-                        if (sc.caseBody != null) {
-                            allCaseBodies.add(sc.caseBody);
-                        }
-                    }
-                    
-                    // Find common successor of all case bodies
-                    Set<Node> commonReachable = null;
-                    for (Node caseBodyNode : allCaseBodies) {
-                        Set<Node> reachable = getReachableNodes(caseBodyNode);
-                        if (commonReachable == null) {
-                            commonReachable = new HashSet<>(reachable);
-                        } else {
-                            commonReachable.retainAll(reachable);
-                        }
-                    }
-                    
-                    if (commonReachable != null && !commonReachable.isEmpty()) {
-                        // Find the closest common node (first direct successor of any case body)
-                        for (Node caseBodyNode : allCaseBodies) {
-                            for (Node succ : caseBodyNode.succs) {
-                                if (commonReachable.contains(succ)) {
-                                    mergeNode = succ;
-                                    break;
-                                }
-                            }
-                            if (mergeNode != null) break;
-                        }
-                    }
-                    
-                    break; // End of switch chain
+                    defaultBody = currentIf.falseBranch;
+                    break;
                 }
             }
             
-            // We have a valid switch if we found at least 2 cases (including default)
-            if (cases.size() >= 2 && mergeNode != null) {
-                // Mark all condition nodes AND case body nodes as processed
-                // to prevent detecting spurious switches from case body chains
-                for (SwitchCase c : cases) {
-                    if (c.conditionNode != null) {
-                        processedNodes.add(c.conditionNode);
-                    }
-                    if (c.caseBody != null) {
-                        processedNodes.add(c.caseBody);
-                    }
-                }
-                
-                switches.add(new SwitchStructure(startCond, cases, mergeNode));
+            if (conditionChain.size() < 2 || defaultBody == null) {
+                continue;
             }
+            
+            // Collect all unique case bodies including default
+            Set<Node> allCaseBodies = new HashSet<>(caseBodies);
+            allCaseBodies.add(defaultBody);
+            
+            // Find the merge node
+            Node mergeNode = null;
+            Set<Node> commonReachable = null;
+            for (Node caseBodyNode : allCaseBodies) {
+                Set<Node> reachable = getReachableNodes(caseBodyNode);
+                if (commonReachable == null) {
+                    commonReachable = new HashSet<>(reachable);
+                } else {
+                    commonReachable.retainAll(reachable);
+                }
+            }
+            
+            if (commonReachable != null && !commonReachable.isEmpty()) {
+                for (Node caseBodyNode : allCaseBodies) {
+                    for (Node succ : caseBodyNode.succs) {
+                        if (commonReachable.contains(succ)) {
+                            mergeNode = succ;
+                            break;
+                        }
+                    }
+                    if (mergeNode != null) break;
+                }
+            }
+            
+            if (mergeNode == null) {
+                continue;
+            }
+            
+            // Second pass: build cases with merged conditions and fall-through detection
+            List<SwitchCase> cases = new ArrayList<>();
+            
+            for (int i = 0; i < conditionChain.size(); i++) {
+                Node cond = conditionChain.get(i);
+                Node body = caseBodies.get(i);
+                
+                // Check if the next condition has the same case body (merged case)
+                // In that case, add a label-only case (no body, no break)
+                if (i + 1 < conditionChain.size() && caseBodies.get(i + 1).equals(body)) {
+                    // This is a label-only merged case
+                    cases.add(new SwitchCase(cond, null, false, false));
+                } else {
+                    // Check if this case body falls through to the next case body
+                    boolean hasFallThrough = false;
+                    if (i + 1 < conditionChain.size()) {
+                        Node nextBody = caseBodies.get(i + 1);
+                        // Check if this case body leads to the next case body (fall-through)
+                        for (Node succ : body.succs) {
+                            if (succ.equals(nextBody)) {
+                                hasFallThrough = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Add case with body
+                    cases.add(new SwitchCase(cond, body, false, !hasFallThrough));
+                }
+            }
+            
+            // Add default case
+            cases.add(new SwitchCase(null, defaultBody, true, true));
+            
+            // Mark all condition nodes AND case body nodes as processed
+            for (int i = 0; i < conditionChain.size(); i++) {
+                processedNodes.add(conditionChain.get(i));
+                processedNodes.add(caseBodies.get(i));
+            }
+            processedNodes.add(defaultBody);
+            
+            switches.add(new SwitchStructure(startCond, cases, mergeNode));
         }
         
         return switches;
