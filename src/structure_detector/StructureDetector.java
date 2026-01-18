@@ -3319,10 +3319,14 @@ public class StructureDetector {
             
             // We have a valid switch if we found at least 2 cases (including default)
             if (cases.size() >= 2 && mergeNode != null) {
-                // Mark all condition nodes as processed
+                // Mark all condition nodes AND case body nodes as processed
+                // to prevent detecting spurious switches from case body chains
                 for (SwitchCase c : cases) {
                     if (c.conditionNode != null) {
                         processedNodes.add(c.conditionNode);
+                    }
+                    if (c.caseBody != null) {
+                        processedNodes.add(c.caseBody);
                     }
                 }
                 
