@@ -373,8 +373,13 @@ public class StructureDetector {
      * Left side of "=>" contains try body node labels.
      * Right side of "=>" contains catch body node labels.
      * 
+     * Note: Try body nodes must exist in the graph (parsed from DOT). Catch body nodes 
+     * are looked up in the existing graph first. If a catch node doesn't exist, this
+     * method will NOT create a new node - use the full DOT graph including catch body
+     * edges to ensure all nodes are properly created with their edges.
+     * 
      * @param exceptionDef the exception definition string
-     * @throws IllegalArgumentException if a node label is not found in the graph
+     * @throws IllegalArgumentException if a try body node label is not found in the graph
      */
     public void parseExceptions(String exceptionDef) {
         if (exceptionDef == null || exceptionDef.trim().isEmpty()) {
@@ -418,9 +423,8 @@ public class StructureDetector {
                 if (!label.isEmpty()) {
                     Node node = nodesByLabel.get(label);
                     if (node == null) {
-                        // Create the node if it doesn't exist (catch nodes may not be reachable from entry)
-                        node = new Node(label);
-                        nodesByLabel.put(label, node);
+                        throw new IllegalArgumentException("Node not found: " + label + 
+                            ". Make sure the DOT graph includes edges for catch body nodes.");
                     }
                     catchNodes.add(node);
                 }
@@ -2430,7 +2434,10 @@ public class StructureDetector {
                 return node;
             }
         }
-        // Fallback: return the first node in catch body
+        // Fallback: return the first node in catch body, or null if empty
+        if (tryStruct.catchBody.isEmpty()) {
+            return null;
+        }
         return tryStruct.catchBody.iterator().next();
     }
     
@@ -2720,9 +2727,12 @@ public class StructureDetector {
             // Find the first catch node (one without predecessors in try body)
             Node catchStart = findCatchStartNode(tryStruct);
             Set<Node> catchVisited = new HashSet<>();
-            List<Statement> catchBody = generateStatementsForNodeSet(catchStart, tryStruct.catchBody, catchVisited,
-                                        loopHeaders, ifConditions, blockStarts, labeledBreakEdges,
-                                        loopsNeedingLabels, currentLoop, currentBlock, switchStarts);
+            List<Statement> catchBody = new ArrayList<>();
+            if (catchStart != null) {
+                catchBody = generateStatementsForNodeSet(catchStart, tryStruct.catchBody, catchVisited,
+                                            loopHeaders, ifConditions, blockStarts, labeledBreakEdges,
+                                            loopsNeedingLabels, currentLoop, currentBlock, switchStarts);
+            }
             
             result.add(new TryStatement(tryBody, catchBody));
             
