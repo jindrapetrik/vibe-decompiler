@@ -486,5 +486,44 @@ public class Examples {
             "}",
             true
         );
+
+        // Example 19: Two nested while loops with labeled blocks inside and breaks to different loop levels
+        System.out.println();
+        runExample("Example 19: Nested While Loops with Multi-Level Breaks",
+            "digraph {\n" +
+            "  start->start1;\n" +
+            "  start1->start2;\n" +
+            "  start2->ifex2;\n" +
+            "  ifex2->end1;\n" +
+            "  ifex2->ifa2;\n" +
+            "  ifa2->x2;\n" +
+            "  ifa2->A12;\n" +
+            "  x2->ifc2;\n" +
+            "  A12->d2;\n" +
+            "  ifc2->y2;\n" +
+            "  ifc2->z2;\n" +
+            "  d2->A22;\n" +
+            "  y2->A22;\n" +
+            "  z2->A12;\n" +
+            "  A22->start3;\n" +
+            "  start3->ifex3;\n" +
+            "  ifex3->end1;\n" +
+            "  ifex3->ifex4;\n" +
+            "  ifex4->end;\n" +
+            "  ifex4->ifa3;\n" +
+            "  ifa3->x3;\n" +
+            "  ifa3->A13;\n" +
+            "  x3->ifc3;\n" +
+            "  A13->d3;\n" +
+            "  ifc3->y3;\n" +
+            "  ifc3->z3;\n" +
+            "  d3->A23;\n" +
+            "  y3->A23;\n" +
+            "  z3->A13;\n" +
+            "  A23->start2;\n" +
+            "  end1->start1;\n" +
+            "}",
+            true
+        );
     }
 }
