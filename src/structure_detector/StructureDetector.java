@@ -157,6 +157,8 @@ public class StructureDetector {
         }
     }
 
+    private static final String RETURN_BLOCK_LABEL = "r_block";
+    
     private final List<Node> allNodes;
     private final Node entryNode;
     private final List<LabeledBlockStructure> labeledBlocks = new ArrayList<>();
@@ -1816,7 +1818,7 @@ public class StructureDetector {
         }
         
         // Create the return block
-        String label = "r_block";
+        String label = RETURN_BLOCK_LABEL;
         
         // Check if this block already exists
         for (LabeledBlockStructure block : labeledBlocks) {
@@ -1832,14 +1834,9 @@ public class StructureDetector {
         LabeledBlockStructure returnBlock = new LabeledBlockStructure(label, blockStart, exitNode, body);
         
         // Add break edges for each return node
+        // The 'from' field is the return node itself (the node that initiates the break)
         for (Node returnNode : returnNodes) {
-            // Find nodes that lead to this return node
-            for (Node node : allNodes) {
-                if (node.succs.contains(returnNode)) {
-                    returnBlock.breaks.add(new LabeledBreakEdge(returnNode, exitNode, label));
-                    break;
-                }
-            }
+            returnBlock.breaks.add(new LabeledBreakEdge(returnNode, exitNode, label));
         }
         
         labeledBlocks.add(returnBlock);
@@ -1905,7 +1902,7 @@ public class StructureDetector {
         Map<Node, LabeledBlockStructure> blockStarts = new HashMap<>();
         for (LabeledBlockStructure block : labeledBlocks) {
             // Don't add return block to blockStarts - it's handled specially at top level
-            if (returnBlock != null && block.label.equals("r_block")) {
+            if (returnBlock != null && block.label.equals(RETURN_BLOCK_LABEL)) {
                 continue;
             }
             blockStarts.put(block.startNode, block);
@@ -2795,7 +2792,7 @@ public class StructureDetector {
             // Check if this target is a return node (not the normal exit)
             boolean isReturnNode = false;
             for (LabeledBlockStructure block : labeledBlocks) {
-                if (block.label.equals("r_block")) {
+                if (block.label.equals(RETURN_BLOCK_LABEL)) {
                     for (LabeledBreakEdge breakEdge : block.breaks) {
                         if (breakEdge.from.equals(target)) {
                             isReturnNode = true;
@@ -2925,7 +2922,7 @@ public class StructureDetector {
                     // Check if this is a "return" node that should target the return block
                     // (i.e., a node with no successors that is NOT the normal loop exit target)
                     for (LabeledBlockStructure block : labeledBlocks) {
-                        if (block.label.equals("r_block")) {
+                        if (block.label.equals(RETURN_BLOCK_LABEL)) {
                             // Check if this node is a return node (has a break edge in the return block)
                             for (LabeledBreakEdge breakEdge : block.breaks) {
                                 if (breakEdge.from.equals(current)) {
