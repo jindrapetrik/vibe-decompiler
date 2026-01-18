@@ -972,8 +972,11 @@ public class StructureDetector {
                 
                 // If one branch goes directly to the merge, create a block
                 // This handles patterns like: if (cond) { complex_body } else { goto merge }
+                // In this case, cond itself is the skip source - when the condition's false branch
+                // goes directly to the merge, the condition acts as a "break" point.
+                // The SkipPattern with cond as both condNode and skipSource indicates that
+                // the condition should be treated as a labeled block boundary.
                 if (branchGoesDirectlyToMerge) {
-                    // The condition itself needs a block from cond to effectiveMerge
                     skipsByConvergence.computeIfAbsent(effectiveMerge, k -> new ArrayList<>())
                                .add(new SkipPattern(cond, cond, effectiveMerge, loop));
                 }
@@ -1172,7 +1175,8 @@ public class StructureDetector {
                     }
                     trueReachable.add(current);
                     for (Node succ : current.succs) {
-                        if (loop.body.contains(succ)) {
+                        // Only add if not already visited to avoid redundant work
+                        if (loop.body.contains(succ) && !trueReachable.contains(succ)) {
                             trueQueue.add(succ);
                         }
                     }
@@ -1188,7 +1192,8 @@ public class StructureDetector {
                     }
                     falseReachable.add(current);
                     for (Node succ : current.succs) {
-                        if (loop.body.contains(succ)) {
+                        // Only add if not already visited to avoid redundant work
+                        if (loop.body.contains(succ) && !falseReachable.contains(succ)) {
                             falseQueue.add(succ);
                         }
                     }
