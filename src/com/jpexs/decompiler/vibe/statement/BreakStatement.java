@@ -35,6 +35,27 @@ public class BreakStatement extends Statement {
     }
     
     /**
+     * Gets the global ID of the target block/loop extracted from the label.
+     * The label format is expected to be "loop_X" or "block_X" where X is the global ID.
+     * 
+     * @return the global ID, or -1 if the label is null or doesn't contain a valid ID
+     */
+    public int getLabelId() {
+        if (label == null || label.isEmpty()) {
+            return -1;
+        }
+        int underscoreIndex = label.lastIndexOf('_');
+        if (underscoreIndex == -1 || underscoreIndex == label.length() - 1) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(label.substring(underscoreIndex + 1));
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+    
+    /**
      * Checks if this is a labeled break.
      * 
      * @return true if this break has a label
