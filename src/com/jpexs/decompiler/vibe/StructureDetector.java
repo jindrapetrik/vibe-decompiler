@@ -2884,8 +2884,11 @@ public class StructureDetector {
                 List<Statement> onTrue = new ArrayList<>();
                 List<Statement> onFalse = new ArrayList<>();
                 
+                // Use unlabeled break when breaking out of immediately enclosing block
+                boolean useUnlabeledBreak = currentBlock != null && labeledBreak.label.equals(currentBlock.label);
+                
                 if (breakOnTrue) {
-                    onTrue.add(new BreakStatement(labeledBreak.label));
+                    onTrue.add(useUnlabeledBreak ? new BreakStatement() : new BreakStatement(labeledBreak.label));
                     Set<Node> elseVisited = new HashSet<>(visited);
                     onFalse.addAll(generateStatements(ifStruct.falseBranch, elseVisited, loopHeaders, ifConditions, 
                                       blockStarts, labeledBreakEdges, loopsNeedingLabels, currentLoop, currentBlock, stopAt, switchStarts));
@@ -2893,7 +2896,7 @@ public class StructureDetector {
                     Set<Node> thenVisited = new HashSet<>(visited);
                     onTrue.addAll(generateStatements(ifStruct.trueBranch, thenVisited, loopHeaders, ifConditions, 
                                       blockStarts, labeledBreakEdges, loopsNeedingLabels, currentLoop, currentBlock, stopAt, switchStarts));
-                    onFalse.add(new BreakStatement(labeledBreak.label));
+                    onFalse.add(useUnlabeledBreak ? new BreakStatement() : new BreakStatement(labeledBreak.label));
                 }
                 
                 result.add(new IfStatement(node, false, onTrue, onFalse));
@@ -2990,6 +2993,18 @@ public class StructureDetector {
         
         // Regular node - just output it
         result.add(new ExpressionStatement(node));
+        
+        // Check if this node has a labeled break (non-conditional node)
+        LabeledBreakEdge regularNodeLabeledBreak = labeledBreakEdges.get(node);
+        if (regularNodeLabeledBreak != null && currentBlock != null) {
+            // Use unlabeled break when breaking out of immediately enclosing block
+            if (regularNodeLabeledBreak.label.equals(currentBlock.label)) {
+                result.add(new BreakStatement());
+            } else {
+                result.add(new BreakStatement(regularNodeLabeledBreak.label));
+            }
+            return result;
+        }
         
         // Continue with successors
         for (Node succ : node.succs) {
@@ -3214,11 +3229,14 @@ public class StructureDetector {
                 boolean breakOnTrue = ifStruct.trueBranch.equals(labeledBreak.to);
                 boolean breakOnFalse = ifStruct.falseBranch.equals(labeledBreak.to);
                 
+                // Use unlabeled break when breaking out of immediately enclosing block
+                boolean useUnlabeledBreak = currentBlock != null && labeledBreak.label.equals(currentBlock.label);
+                
                 // A) & B) Apply optimizations: negate and flatten
                 if (breakOnTrue) {
                     // B) True branch is break - output break first with condition, then flatten false branch
                     List<Statement> breakBody = new ArrayList<>();
-                    breakBody.add(new BreakStatement(labeledBreak.label));
+                    breakBody.add(useUnlabeledBreak ? new BreakStatement() : new BreakStatement(labeledBreak.label));
                     result.add(new IfStatement(node, false, breakBody));
                     
                     Set<Node> elseVisited = new HashSet<>(visited);
@@ -3232,7 +3250,7 @@ public class StructureDetector {
                 } else if (breakOnFalse) {
                     // A) False branch is break - negate condition and flatten
                     List<Statement> breakBody = new ArrayList<>();
-                    breakBody.add(new BreakStatement(labeledBreak.label));
+                    breakBody.add(useUnlabeledBreak ? new BreakStatement() : new BreakStatement(labeledBreak.label));
                     result.add(new IfStatement(node, true, breakBody));
                     
                     Set<Node> thenVisited = new HashSet<>(visited);
@@ -3736,8 +3754,14 @@ public class StructureDetector {
             }
         }
         
+        // Use unlabeled break when breaking out of immediately enclosing block
         if (breakLabel != null && !breakLabel.isEmpty()) {
-            result.add(new BreakStatement(breakLabel));
+            if (currentBlock != null && breakLabel.equals(currentBlock.label)) {
+                // Breaking out of the immediately enclosing block - use unlabeled break
+                result.add(new BreakStatement());
+            } else {
+                result.add(new BreakStatement(breakLabel));
+            }
         } else if (currentBlock != null && currentLoop != null) {
             result.add(new BreakStatement(getLoopLabel(currentLoop.header)));
         } else {
@@ -3795,9 +3819,12 @@ public class StructureDetector {
             if (ifStruct != null) {
                 boolean breakOnTrue = !currentBlock.body.contains(ifStruct.trueBranch);
                 
+                // Use unlabeled break when breaking out of immediately enclosing block
+                boolean useUnlabeledBreak = labeledBreak.label.equals(currentBlock.label);
+                
                 if (breakOnTrue) {
                     List<Statement> breakBody = new ArrayList<>();
-                    breakBody.add(new BreakStatement(labeledBreak.label));
+                    breakBody.add(useUnlabeledBreak ? new BreakStatement() : new BreakStatement(labeledBreak.label));
                     result.add(new IfStatement(node, false, breakBody));
                     Set<Node> elseVisited = new HashSet<>(visited);
                     elseVisited.add(node);
@@ -3805,7 +3832,7 @@ public class StructureDetector {
                                               labeledBreakEdges, currentBlock));
                 } else {
                     List<Statement> breakBody = new ArrayList<>();
-                    breakBody.add(new BreakStatement(labeledBreak.label));
+                    breakBody.add(useUnlabeledBreak ? new BreakStatement() : new BreakStatement(labeledBreak.label));
                     result.add(new IfStatement(node, true, breakBody));
                     Set<Node> thenVisited = new HashSet<>(visited);
                     thenVisited.add(node);
@@ -3920,8 +3947,12 @@ public class StructureDetector {
         for (Node succ : node.succs) {
             if (succ.equals(currentBlock.endNode) && node.succs.size() == 1) {
                 result.add(new ExpressionStatement(node));
-                if (stopAt != null) {
-                    result.add(new BreakStatement(currentBlock.label));
+                // Only add break if there's a stopAt (meaning we're in a partial traversal, like if body)
+                // and the node is a labeled break source
+                LabeledBreakEdge breakEdge = labeledBreakEdges.get(node);
+                if (breakEdge != null && breakEdge.to.equals(currentBlock.endNode)) {
+                    // This is a labeled break source - add the break
+                    result.add(new BreakStatement());
                 }
                 return result;
             }
@@ -3938,7 +3969,12 @@ public class StructureDetector {
                 result.addAll(generateStatementsInBlock(succ, visited, loopHeaders, ifConditions, 
                                           labeledBreakEdges, currentBlock, stopAt));
             } else if (leadsOutside && succ.equals(currentBlock.endNode)) {
-                result.add(new BreakStatement(currentBlock.label));
+                // Check if this node is a labeled break source
+                LabeledBreakEdge breakEdge = labeledBreakEdges.get(node);
+                if (breakEdge != null && breakEdge.to.equals(currentBlock.endNode)) {
+                    // Use unlabeled break since we're breaking out of the immediately enclosing block
+                    result.add(new BreakStatement());
+                }
             }
         }
         
