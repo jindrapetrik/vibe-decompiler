@@ -213,10 +213,32 @@ public class StructureDetector {
 
     private static final String RETURN_BLOCK_LABEL = "r_block";
     
+    /**
+     * Represents a try-catch structure (exception range) in the CFG.
+     * The try body contains nodes that are protected by the exception handler.
+     * The catch body contains nodes that handle the exception.
+     */
+    public static class TryStructure {
+        public final Set<Node> tryBody;     // nodes in the try block
+        public final Set<Node> catchBody;   // nodes in the catch block
+        
+        public TryStructure(Set<Node> tryBody, Set<Node> catchBody) {
+            this.tryBody = tryBody;
+            this.catchBody = catchBody;
+        }
+        
+        @Override
+        public String toString() {
+            return "Try{try=" + tryBody + ", catch=" + catchBody + "}";
+        }
+    }
+    
     private final List<Node> allNodes;
     private final Node entryNode;
     private final List<LabeledBlockStructure> labeledBlocks = new ArrayList<>();
     private final List<SwitchStructure> switchStructures = new ArrayList<>();
+    private final List<TryStructure> tryStructures = new ArrayList<>();
+    private Map<String, Node> nodesByLabel = new LinkedHashMap<>();
 
     /**
      * Creates a new StructureDetector for the given CFG.
@@ -226,6 +248,24 @@ public class StructureDetector {
     public StructureDetector(Node entryNode) {
         this.entryNode = entryNode;
         this.allNodes = collectAllNodes(entryNode);
+        // Build nodesByLabel map
+        for (Node node : allNodes) {
+            nodesByLabel.put(node.getLabel(), node);
+        }
+    }
+    
+    /**
+     * Creates a new StructureDetector with the given entry node and all parsed nodes.
+     * This is used by fromGraphviz to preserve all nodes including those not reachable from entry.
+     * 
+     * @param entryNode the entry node of the CFG
+     * @param parsedNodes map of all parsed nodes by their labels
+     */
+    private StructureDetector(Node entryNode, Map<String, Node> parsedNodes) {
+        this.entryNode = entryNode;
+        this.allNodes = collectAllNodes(entryNode);
+        // Store all parsed nodes (including those not reachable from entry)
+        this.nodesByLabel = new LinkedHashMap<>(parsedNodes);
     }
 
     /**
@@ -290,7 +330,7 @@ public class StructureDetector {
             throw new IllegalArgumentException("No nodes found in DOT string");
         }
         
-        return new StructureDetector(firstNode);
+        return new StructureDetector(firstNode, nodes);
     }
 
     /**
@@ -300,6 +340,105 @@ public class StructureDetector {
      */
     public Node getEntryNode() {
         return entryNode;
+    }
+
+    /**
+     * Adds a try-catch structure (exception range) to the CFG.
+     * The try body nodes are those protected by the exception handler.
+     * The catch body nodes handle the exception.
+     * 
+     * @param tryNodes nodes in the try block
+     * @param catchNodes nodes in the catch block
+     */
+    public void addException(Set<Node> tryNodes, Set<Node> catchNodes) {
+        TryStructure tryStruct = new TryStructure(tryNodes, catchNodes);
+        tryStructures.add(tryStruct);
+        
+        // Add catch nodes to allNodes if not already present
+        for (Node catchNode : catchNodes) {
+            if (!allNodes.contains(catchNode)) {
+                allNodes.add(catchNode);
+            }
+            if (!nodesByLabel.containsKey(catchNode.getLabel())) {
+                nodesByLabel.put(catchNode.getLabel(), catchNode);
+            }
+        }
+    }
+    
+    /**
+     * Parses exception definitions in string format and adds them to the detector.
+     * Format: "node1, node2, node3 => catchnode1, catchnode2, catchnode3; ..."
+     * 
+     * Multiple exception ranges are separated by semicolons.
+     * Left side of "=>" contains try body node labels.
+     * Right side of "=>" contains catch body node labels.
+     * 
+     * @param exceptionDef the exception definition string
+     * @throws IllegalArgumentException if a node label is not found in the graph
+     */
+    public void parseExceptions(String exceptionDef) {
+        if (exceptionDef == null || exceptionDef.trim().isEmpty()) {
+            return;
+        }
+        
+        // Split by semicolons for multiple exception ranges
+        String[] ranges = exceptionDef.split(";");
+        for (String range : ranges) {
+            range = range.trim();
+            if (range.isEmpty()) {
+                continue;
+            }
+            
+            // Split by "=>"
+            String[] parts = range.split("=>");
+            if (parts.length != 2) {
+                throw new IllegalArgumentException("Invalid exception format: " + range + ". Expected 'tryNodes => catchNodes'");
+            }
+            
+            String tryPart = parts[0].trim();
+            String catchPart = parts[1].trim();
+            
+            // Parse try nodes
+            Set<Node> tryNodes = new LinkedHashSet<>();
+            for (String label : tryPart.split(",")) {
+                label = label.trim();
+                if (!label.isEmpty()) {
+                    Node node = nodesByLabel.get(label);
+                    if (node == null) {
+                        throw new IllegalArgumentException("Node not found: " + label);
+                    }
+                    tryNodes.add(node);
+                }
+            }
+            
+            // Parse catch nodes
+            Set<Node> catchNodes = new LinkedHashSet<>();
+            for (String label : catchPart.split(",")) {
+                label = label.trim();
+                if (!label.isEmpty()) {
+                    Node node = nodesByLabel.get(label);
+                    if (node == null) {
+                        // Create the node if it doesn't exist (catch nodes may not be reachable from entry)
+                        node = new Node(label);
+                        nodesByLabel.put(label, node);
+                    }
+                    catchNodes.add(node);
+                }
+            }
+            
+            if (!tryNodes.isEmpty() && !catchNodes.isEmpty()) {
+                addException(tryNodes, catchNodes);
+            }
+        }
+    }
+    
+    /**
+     * Returns all registered try-catch structures.
+     * 
+     * @return list of try structures
+     */
+    public List<TryStructure> getTryStructures() {
+        return new ArrayList<>(tryStructures);
     }
 
     /**
@@ -2241,6 +2380,214 @@ public class StructureDetector {
         return null;
     }
 
+    /**
+     * Finds a TryStructure that starts at the given node.
+     * A node starts a try structure if it's the first node in the try body
+     * (has no predecessors that are also in the try body).
+     */
+    private TryStructure findTryStructureStartingAt(Node node) {
+        for (TryStructure tryStruct : tryStructures) {
+            if (tryStruct.tryBody.contains(node)) {
+                // Check if this node is the first in the try body
+                // (no predecessors in the try body)
+                boolean isFirst = true;
+                for (Node pred : node.preds) {
+                    if (tryStruct.tryBody.contains(pred)) {
+                        isFirst = false;
+                        break;
+                    }
+                }
+                if (isFirst) {
+                    return tryStruct;
+                }
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Finds the first node in the catch body (one without predecessors in try body or earlier catch body).
+     */
+    private Node findCatchStartNode(TryStructure tryStruct) {
+        for (Node node : tryStruct.catchBody) {
+            boolean hasExternalPred = false;
+            boolean hasTryPred = false;
+            boolean hasCatchPred = false;
+            
+            for (Node pred : node.preds) {
+                if (tryStruct.tryBody.contains(pred)) {
+                    hasTryPred = true;
+                } else if (tryStruct.catchBody.contains(pred)) {
+                    hasCatchPred = true;
+                } else {
+                    hasExternalPred = true;
+                }
+            }
+            
+            // The catch start node is one that doesn't have predecessors from within catch body
+            // (it can have predecessors from try body as that's the exception edge)
+            if (!hasCatchPred) {
+                return node;
+            }
+        }
+        // Fallback: return the first node in catch body
+        return tryStruct.catchBody.iterator().next();
+    }
+    
+    /**
+     * Finds the merge node where try and catch blocks converge.
+     * This is typically the first node that both try and catch bodies reach.
+     */
+    private Node findTryCatchMergeNode(TryStructure tryStruct) {
+        // Find successors of try body nodes that are not in try body
+        Set<Node> tryExits = new HashSet<>();
+        for (Node node : tryStruct.tryBody) {
+            for (Node succ : node.succs) {
+                if (!tryStruct.tryBody.contains(succ) && !tryStruct.catchBody.contains(succ)) {
+                    tryExits.add(succ);
+                }
+            }
+        }
+        
+        // Find successors of catch body nodes that are not in catch body
+        Set<Node> catchExits = new HashSet<>();
+        for (Node node : tryStruct.catchBody) {
+            for (Node succ : node.succs) {
+                if (!tryStruct.catchBody.contains(succ) && !tryStruct.tryBody.contains(succ)) {
+                    catchExits.add(succ);
+                }
+            }
+        }
+        
+        // Find common exit node
+        for (Node tryExit : tryExits) {
+            if (catchExits.contains(tryExit)) {
+                return tryExit;
+            }
+        }
+        
+        // If no common exit, return the first try exit
+        if (!tryExits.isEmpty()) {
+            return tryExits.iterator().next();
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Generates statements for a specific set of nodes, starting from a given node.
+     * Only generates statements for nodes that are in the given nodeSet.
+     */
+    private List<Statement> generateStatementsForNodeSet(Node node, Set<Node> nodeSet, Set<Node> visited,
+                                               Map<Node, LoopStructure> loopHeaders, Map<Node, IfStructure> ifConditions,
+                                               Map<Node, LabeledBlockStructure> blockStarts, Map<Node, LabeledBreakEdge> labeledBreakEdges,
+                                               Set<Node> loopsNeedingLabels,
+                                               LoopStructure currentLoop, LabeledBlockStructure currentBlock,
+                                               Map<Node, SwitchStructure> switchStarts) {
+        return generateStatementsForNodeSet(node, nodeSet, visited, loopHeaders, ifConditions, 
+                                           blockStarts, labeledBreakEdges, loopsNeedingLabels,
+                                           currentLoop, currentBlock, switchStarts, null);
+    }
+    
+    /**
+     * Generates statements for a specific set of nodes, starting from a given node.
+     * Only generates statements for nodes that are in the given nodeSet.
+     * Stops at stopAt node if provided.
+     */
+    private List<Statement> generateStatementsForNodeSet(Node node, Set<Node> nodeSet, Set<Node> visited,
+                                               Map<Node, LoopStructure> loopHeaders, Map<Node, IfStructure> ifConditions,
+                                               Map<Node, LabeledBlockStructure> blockStarts, Map<Node, LabeledBreakEdge> labeledBreakEdges,
+                                               Set<Node> loopsNeedingLabels,
+                                               LoopStructure currentLoop, LabeledBlockStructure currentBlock,
+                                               Map<Node, SwitchStructure> switchStarts, Node stopAt) {
+        List<Statement> result = new ArrayList<>();
+        
+        if (node == null || visited.contains(node) || !nodeSet.contains(node)) {
+            return result;
+        }
+        
+        // Stop at the merge node
+        if (stopAt != null && node.equals(stopAt)) {
+            return result;
+        }
+        
+        visited.add(node);
+        
+        // Check if this is an if condition
+        IfStructure ifStruct = ifConditions.get(node);
+        if (ifStruct != null) {
+            boolean trueInSet = nodeSet.contains(ifStruct.trueBranch);
+            boolean falseInSet = nodeSet.contains(ifStruct.falseBranch);
+            
+            // Find merge node within the set
+            Node mergeNode = null;
+            if (ifStruct.mergeNode != null && nodeSet.contains(ifStruct.mergeNode)) {
+                mergeNode = ifStruct.mergeNode;
+            } else {
+                mergeNode = findMergeNode(ifStruct.trueBranch, ifStruct.falseBranch);
+                if (mergeNode != null && !nodeSet.contains(mergeNode)) {
+                    mergeNode = null;
+                }
+            }
+            
+            if (trueInSet && falseInSet) {
+                // Both branches are in the set - standard if-else
+                // Stop at merge node when generating branches
+                Set<Node> trueVisited = new HashSet<>(visited);
+                List<Statement> onTrue = generateStatementsForNodeSet(ifStruct.trueBranch, nodeSet, trueVisited,
+                                           loopHeaders, ifConditions, blockStarts, labeledBreakEdges,
+                                           loopsNeedingLabels, currentLoop, currentBlock, switchStarts, mergeNode);
+                
+                Set<Node> falseVisited = new HashSet<>(visited);
+                List<Statement> onFalse = generateStatementsForNodeSet(ifStruct.falseBranch, nodeSet, falseVisited,
+                                           loopHeaders, ifConditions, blockStarts, labeledBreakEdges,
+                                           loopsNeedingLabels, currentLoop, currentBlock, switchStarts, mergeNode);
+                
+                result.add(new IfStatement(node.getLabel(), false, onTrue, onFalse));
+                
+                visited.addAll(trueVisited);
+                visited.addAll(falseVisited);
+                
+                // Generate code after the merge node
+                if (mergeNode != null && !visited.contains(mergeNode)) {
+                    result.addAll(generateStatementsForNodeSet(mergeNode, nodeSet, visited,
+                                   loopHeaders, ifConditions, blockStarts, labeledBreakEdges,
+                                   loopsNeedingLabels, currentLoop, currentBlock, switchStarts, stopAt));
+                }
+            } else if (trueInSet) {
+                // Only true branch is in set
+                result.add(new ExpressionStatement(node.getLabel()));
+                result.addAll(generateStatementsForNodeSet(ifStruct.trueBranch, nodeSet, visited,
+                               loopHeaders, ifConditions, blockStarts, labeledBreakEdges,
+                               loopsNeedingLabels, currentLoop, currentBlock, switchStarts, stopAt));
+            } else if (falseInSet) {
+                // Only false branch is in set
+                result.add(new ExpressionStatement(node.getLabel()));
+                result.addAll(generateStatementsForNodeSet(ifStruct.falseBranch, nodeSet, visited,
+                               loopHeaders, ifConditions, blockStarts, labeledBreakEdges,
+                               loopsNeedingLabels, currentLoop, currentBlock, switchStarts, stopAt));
+            } else {
+                // Neither branch in set - just output node
+                result.add(new ExpressionStatement(node.getLabel()));
+            }
+            
+            return result;
+        }
+        
+        // Regular node
+        result.add(new ExpressionStatement(node.getLabel()));
+        
+        // Continue with successors that are in the set
+        for (Node succ : node.succs) {
+            if (nodeSet.contains(succ) && !visited.contains(succ) && !succ.equals(stopAt)) {
+                result.addAll(generateStatementsForNodeSet(succ, nodeSet, visited,
+                               loopHeaders, ifConditions, blockStarts, labeledBreakEdges,
+                               loopsNeedingLabels, currentLoop, currentBlock, switchStarts, stopAt));
+            }
+        }
+        
+        return result;
+    }
     
     /**
      * Finds the internal merge point where both branches converge within a given body.
@@ -2358,6 +2705,38 @@ public class StructureDetector {
         
         // Stop at merge node, loop exit, or block end
         if (stopAt != null && node.equals(stopAt)) {
+            return result;
+        }
+        
+        // Check if this node is the start of a try block
+        TryStructure tryStruct = findTryStructureStartingAt(node);
+        if (tryStruct != null) {
+            // Generate try-catch statement
+            Set<Node> tryVisited = new HashSet<>();
+            List<Statement> tryBody = generateStatementsForNodeSet(node, tryStruct.tryBody, tryVisited, 
+                                        loopHeaders, ifConditions, blockStarts, labeledBreakEdges, 
+                                        loopsNeedingLabels, currentLoop, currentBlock, switchStarts);
+            
+            // Find the first catch node (one without predecessors in try body)
+            Node catchStart = findCatchStartNode(tryStruct);
+            Set<Node> catchVisited = new HashSet<>();
+            List<Statement> catchBody = generateStatementsForNodeSet(catchStart, tryStruct.catchBody, catchVisited,
+                                        loopHeaders, ifConditions, blockStarts, labeledBreakEdges,
+                                        loopsNeedingLabels, currentLoop, currentBlock, switchStarts);
+            
+            result.add(new TryStatement(tryBody, catchBody));
+            
+            // Mark all try and catch nodes as visited
+            visited.addAll(tryStruct.tryBody);
+            visited.addAll(tryStruct.catchBody);
+            
+            // Find the merge node (common successor of try and catch blocks)
+            Node mergeNode = findTryCatchMergeNode(tryStruct);
+            if (mergeNode != null && !visited.contains(mergeNode)) {
+                result.addAll(generateStatements(mergeNode, visited, loopHeaders, ifConditions, 
+                    blockStarts, labeledBreakEdges, loopsNeedingLabels, currentLoop, currentBlock, stopAt, switchStarts));
+            }
+            
             return result;
         }
         
@@ -3727,6 +4106,36 @@ public class StructureDetector {
         System.out.println("--- Graphviz/DOT ---");
         System.out.println(detector.toGraphviz());
     }
+    
+    /**
+     * Runs an example with the given DOT source, description, and exception definitions.
+     * Creates a StructureDetector, parses exceptions, analyzes it, and prints pseudocode.
+     * 
+     * @param description the description of the example
+     * @param dot the DOT/Graphviz source code
+     * @param exceptions the exception definition string (format: "tryNodes => catchNodes; ...")
+     */
+    private static void runExampleWithExceptions(String description, String dot, String exceptions) {
+        System.out.println("===== " + description + " =====");
+        StructureDetector detector = StructureDetector.fromGraphviz(dot);
+        detector.parseExceptions(exceptions);
+        detector.analyze();
+        
+        System.out.println("\n--- Detected Structures ---");
+        System.out.println("If Structures: " + detector.detectIfs().size());
+        for (IfStructure s : detector.detectIfs()) {
+            System.out.println("  " + s);
+        }
+        System.out.println("Try Structures: " + detector.getTryStructures().size());
+        for (TryStructure s : detector.getTryStructures()) {
+            System.out.println("  " + s);
+        }
+        
+        System.out.println("\n--- Pseudocode ---");
+        System.out.println(detector.toPseudocode());
+        System.out.println("--- Graphviz/DOT ---");
+        System.out.println(detector.toGraphviz());
+    }
 
     /**
      * Demonstration with example CFGs.
@@ -4013,6 +4422,25 @@ public class StructureDetector {
             "  case2->case3;\n" +
             "}",
             true
+        );
+
+        // Example 14: Try-Catch with if-else in both blocks
+        System.out.println();
+        runExampleWithExceptions("Example 14: Try-Catch with If-Else",
+            "digraph {\n" +
+            "  start->trybody1;\n" +
+            "  trybody1->a;\n" +
+            "  trybody1->b;\n" +
+            "  a->trybody2;\n" +
+            "  b->trybody2;\n" +
+            "  trybody2->end;\n" +
+            "  catchbody1->c;\n" +
+            "  catchbody1->d;\n" +
+            "  c->catchbody2;\n" +
+            "  d->catchbody2;\n" +
+            "  catchbody2->end;\n" +
+            "}",
+            "trybody1, a, b, trybody2 => catchbody1, c, d, catchbody2"
         );
     }
 }
