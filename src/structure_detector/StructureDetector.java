@@ -2358,12 +2358,35 @@ public class StructureDetector {
             // Generate switch statement
             List<SwitchStatement.Case> switchCases = new ArrayList<>();
             
+            // Collect all case body nodes and the next case body for each (for fall-through detection)
+            Map<Node, Node> caseBodyToNextBody = new HashMap<>();
+            for (int i = 0; i < switchStruct.cases.size(); i++) {
+                SwitchCase sc = switchStruct.cases.get(i);
+                if (sc.caseBody != null) {
+                    // Find the next case body (for fall-through stop point)
+                    Node nextBody = null;
+                    for (int j = i + 1; j < switchStruct.cases.size(); j++) {
+                        if (switchStruct.cases.get(j).caseBody != null) {
+                            nextBody = switchStruct.cases.get(j).caseBody;
+                            break;
+                        }
+                    }
+                    caseBodyToNextBody.put(sc.caseBody, nextBody);
+                }
+            }
+            
             for (SwitchCase sc : switchStruct.cases) {
                 List<Statement> caseBody = new ArrayList<>();
-                // Add the case body node as a statement (only if there's a body)
+                
+                // Generate full case body content (not just the label)
                 if (sc.caseBody != null) {
-                    caseBody.add(new ExpressionStatement(sc.caseBody.getLabel()));
+                    Set<Node> caseVisited = new HashSet<>();
+                    // Stop at the merge node or the next case body (for fall-through)
+                    Node stopNode = sc.hasBreak ? switchStruct.mergeNode : caseBodyToNextBody.get(sc.caseBody);
+                    List<Statement> bodyStatements = generateStatements(sc.caseBody, caseVisited, loopHeaders, ifConditions, blockStarts, labeledBreakEdges, loopsNeedingLabels, currentLoop, currentBlock, stopNode, switchStarts);
+                    caseBody.addAll(bodyStatements);
                 }
+                
                 // Add break statement only if this case has a break
                 if (sc.hasBreak) {
                     caseBody.add(new BreakStatement());
@@ -2378,13 +2401,10 @@ public class StructureDetector {
             
             result.add(new SwitchStatement(switchCases));
             
-            // Mark all switch nodes as visited
+            // Mark all switch condition nodes as visited (case bodies are handled by recursive generation)
             for (SwitchCase sc : switchStruct.cases) {
                 if (sc.conditionNode != null) {
                     visited.add(sc.conditionNode);
-                }
-                if (sc.caseBody != null) {
-                    visited.add(sc.caseBody);
                 }
             }
             
@@ -3687,7 +3707,7 @@ public class StructureDetector {
             true
         );
 
-        // Example 12: Switch with fall-through and merged cases
+        // Example 12: Switch with fall-through, merged cases, and nested if-else
         System.out.println();
         runExample("Example 12: Switch with Fall-through and Merged Cases",
             "digraph {\n" +
@@ -3702,7 +3722,12 @@ public class StructureDetector {
             "  if3->if4;\n" +
             "  if4->if5;\n" +
             "  if5->d;\n" +
-            "  case1->end;\n" +
+            "  case1->n;\n" +
+            "  n->a;\n" +
+            "  n->b;\n" +
+            "  a->c;\n" +
+            "  b->c;\n" +
+            "  c->end;\n" +
             "  case3->end;\n" +
             "  case45->end;\n" +
             "  d->end;\n" +
