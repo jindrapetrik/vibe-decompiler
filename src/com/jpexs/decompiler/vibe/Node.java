@@ -17,15 +17,34 @@ public class Node {
     public List<Node> preds = new ArrayList<>();
     public List<Node> succs = new ArrayList<>();
     
+    /**
+     * Custom data associated with this Node.
+     */
+    private Object customData;
+    
     public Node() {
         this.id = nextId.getAndIncrement();
-        this.label = "node" + id;
+        this.label = "node" + id;        
     }
     
     public Node(String label) {
         this.id = nextId.getAndIncrement();
-        this.label = label;
+        this.label = label;        
     }
+    
+    public Node(String label, Object customData) {
+        this.id = nextId.getAndIncrement();
+        this.label = label;
+        this.customData = customData;
+    }
+
+    public void setCustomData(Object customData) {
+        this.customData = customData;
+    }
+
+    public Object getCustomData() {
+        return customData;
+    }        
     
     public int getId() {
         return id;

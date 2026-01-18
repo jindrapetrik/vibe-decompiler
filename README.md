@@ -6,6 +6,9 @@ a control-flow graph structure detector - developed with extensive use of AI
 
 The project is still a work in progress...
 
+If this get success, I can later use it as a base for new algorithms in
+[jpexs-decompiler](https://github.com/jindrapetrik/jpexs-decompiler).
+
 ## Usage
 
 ### Basic Usage
@@ -83,6 +86,14 @@ String pseudocode = detector.toPseudocode();
 #### Accessor Methods
 
 - `getEntryNode()` - Returns the entry node of the CFG
+
+
+#### Node class
+- `Node()` - creates node with generic label
+- `Node(String label)` - creates node with custom label
+- `Node(String label, Object customData)` - creates node with custom label and data
+- `void setCustomData(Object customData)` - sets custom node data
+- `Object getCustomData()` - gets custom node data
 
 ### Running Examples
 
