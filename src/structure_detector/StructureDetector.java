@@ -2879,5 +2879,58 @@ public class StructureDetector {
         System.out.println(detector9.toPseudocode());
         System.out.println("--- Graphviz/DOT ---");
         System.out.println(detector9.toGraphviz());
+
+        // Example 10: Two parts - first part similar to Example 9, followed by a while loop
+        // containing a similar nested if structure
+        // The expected pseudocode should have:
+        // - A labeled block in the while loop (start2_cont)
+        // - Nodes A12, d2 should NOT be duplicated in the code
+        System.out.println("\n===== Example 10: Nested Ifs with While Loop =====");
+        StructureDetector detector10 = StructureDetector.fromGraphviz(
+            "digraph {\n" +
+            "  start->ifa;\n" +
+            "  ifa->x;\n" +
+            "  ifa->A1;\n" +
+            "  x->ifc;\n" +
+            "  ifc->y;\n" +
+            "  ifc->z;\n" +
+            "  y->A2;\n" +
+            "  z->A1;\n" +
+            "  A1->d;\n" +
+            "  d->A2;\n" +
+            "  A2->start2;\n" +
+            "  start2->ifex;\n" +
+            "  ifex->end;\n" +
+            "  ifex->ifa2;\n" +
+            "  ifa2->x2;\n" +
+            "  ifa2->A12;\n" +
+            "  x2->ifc2;\n" +
+            "  ifc2->y2;\n" +
+            "  ifc2->z2;\n" +
+            "  y2->A22;\n" +
+            "  z2->A12;\n" +
+            "  A12->d2;\n" +
+            "  d2->A22;\n" +
+            "  A22->start2;\n" +
+            "}"
+        );
+        detector10.analyze();
+        System.out.println("\n--- Detected Structures ---");
+        System.out.println("If Structures: " + detector10.detectIfs().size());
+        for (IfStructure s : detector10.detectIfs()) {
+            System.out.println("  " + s);
+        }
+        System.out.println("Loop Structures: " + detector10.detectLoops().size());
+        for (LoopStructure s : detector10.detectLoops()) {
+            System.out.println("  " + s);
+        }
+        System.out.println("Labeled Block Structures: " + detector10.getLabeledBlocks().size());
+        for (LabeledBlockStructure s : detector10.getLabeledBlocks()) {
+            System.out.println("  " + s);
+        }
+        System.out.println("\n--- Pseudocode ---");
+        System.out.println(detector10.toPseudocode());
+        System.out.println("--- Graphviz/DOT ---");
+        System.out.println(detector10.toGraphviz());
     }
 }
