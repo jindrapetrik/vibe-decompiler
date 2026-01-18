@@ -3252,11 +3252,11 @@ public class StructureDetector {
         List<SwitchStructure> switches = new ArrayList<>();
         Set<Node> processedNodes = new HashSet<>();
         
-        // Get nodes in loops to skip (switch detection is for non-loop patterns)
+        // Get loop headers to exclude from switch detection
         List<LoopStructure> loops = detectLoops();
-        Set<Node> nodesInLoops = new HashSet<>();
+        Set<Node> loopHeaders = new HashSet<>();
         for (LoopStructure loop : loops) {
-            nodesInLoops.addAll(loop.body);
+            loopHeaders.add(loop.header);
         }
         
         // Build maps for quick lookup
@@ -3271,8 +3271,8 @@ public class StructureDetector {
         for (IfStructure ifStruct : ifs) {
             Node startCond = ifStruct.conditionNode;
             
-            // Skip if already part of a detected switch or in a loop
-            if (processedNodes.contains(startCond) || nodesInLoops.contains(startCond)) {
+            // Skip if already part of a detected switch or if it's a loop header
+            if (processedNodes.contains(startCond) || loopHeaders.contains(startCond)) {
                 continue;
             }
             
@@ -3315,27 +3315,44 @@ public class StructureDetector {
             Set<Node> allCaseBodies = new HashSet<>(caseBodies);
             allCaseBodies.add(defaultBody);
             
-            // Find the merge node
+            // Find the merge node - the node that is the direct successor of the most case body paths
+            // Count how many case bodies have each node as a direct or near-direct successor
             Node mergeNode = null;
-            Set<Node> commonReachable = null;
+            Map<Node, Integer> directSuccCount = new HashMap<>();
+            
+            // For each case body, find the first "exit" node that leads outside the case's internal logic
             for (Node caseBodyNode : allCaseBodies) {
-                Set<Node> reachable = getReachableNodes(caseBodyNode);
-                if (commonReachable == null) {
-                    commonReachable = new HashSet<>(reachable);
-                } else {
-                    commonReachable.retainAll(reachable);
+                Set<Node> visited = new HashSet<>();
+                Queue<Node> queue = new LinkedList<>();
+                queue.add(caseBodyNode);
+                
+                while (!queue.isEmpty()) {
+                    Node current = queue.poll();
+                    if (visited.contains(current)) continue;
+                    visited.add(current);
+                    
+                    for (Node succ : current.succs) {
+                        // If this successor is a potential merge point (not part of switch structure)
+                        if (!conditionChain.contains(succ) && !allCaseBodies.contains(succ)) {
+                            // Count it
+                            directSuccCount.put(succ, directSuccCount.getOrDefault(succ, 0) + 1);
+                            // Only continue traversing if this node has exactly one successor
+                            // (linear code, not a branch point or merge point)
+                            if (current.succs.size() == 1) {
+                                queue.add(succ);
+                            }
+                        }
+                    }
                 }
             }
             
-            if (commonReachable != null && !commonReachable.isEmpty()) {
-                for (Node caseBodyNode : allCaseBodies) {
-                    for (Node succ : caseBodyNode.succs) {
-                        if (commonReachable.contains(succ)) {
-                            mergeNode = succ;
-                            break;
-                        }
-                    }
-                    if (mergeNode != null) break;
+            // Find the node with the highest count
+            int maxCount = 0;
+            for (Map.Entry<Node, Integer> entry : directSuccCount.entrySet()) {
+                // Prefer nodes that are not loop headers
+                if (entry.getValue() > maxCount && !loopHeaders.contains(entry.getKey())) {
+                    maxCount = entry.getValue();
+                    mergeNode = entry.getKey();
                 }
             }
             
@@ -3731,6 +3748,41 @@ public class StructureDetector {
             "  case3->end;\n" +
             "  case45->end;\n" +
             "  d->end;\n" +
+            "  case2->case3;\n" +
+            "}",
+            true
+        );
+
+        // Example 13: Loop with switch inside and labeled break
+        System.out.println();
+        runExample("Example 13: Loop with Switch and Labeled Break",
+            "digraph {\n" +
+            "  start->cond;\n" +
+            "  cond->end;\n" +
+            "  cond->if1;\n" +
+            "  if1->case1;\n" +
+            "  if2->case2;\n" +
+            "  if3->case3;\n" +
+            "  if4->case45;\n" +
+            "  if5->case45;\n" +
+            "  if1->if2;\n" +
+            "  if2->if3;\n" +
+            "  if3->if4;\n" +
+            "  if4->if5;\n" +
+            "  if5->d;\n" +
+            "  case1->n;\n" +
+            "  n->a;\n" +
+            "  n->b;\n" +
+            "  a->c;\n" +
+            "  b->c;\n" +
+            "  c->m;\n" +
+            "  m->end;\n" +
+            "  m->t;\n" +
+            "  t->sw_end;\n" +
+            "  case3->sw_end;\n" +
+            "  case45->sw_end;\n" +
+            "  d->sw_end;\n" +
+            "  sw_end->cond;\n" +
             "  case2->case3;\n" +
             "}",
             true
