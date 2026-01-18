@@ -301,6 +301,10 @@ public class Examples {
             "  case3->end;\n" +
             "  case4->end;\n" +
             "  d->end;\n" +
+            "  if1[_operator=\"===\"];\n" +
+            "  if2[_operator=\"===\"];\n" +
+            "  if3[_operator=\"===\"];\n" +
+            "  if4[_operator=\"===\"];\n" +            
             "}",
             true
         );
@@ -330,6 +334,11 @@ public class Examples {
             "  case45->end;\n" +
             "  d->end;\n" +
             "  case2->case3;\n" +
+            "  if1[_operator=\"===\"];\n" +
+            "  if2[_operator=\"===\"];\n" +
+            "  if3[_operator=\"===\"];\n" +
+            "  if4[_operator=\"===\"];\n" +            
+            "  if5[_operator=\"===\"];\n" +                        
             "}",
             true
         );
@@ -369,6 +378,11 @@ public class Examples {
             "  d->sw_end;\n" +
             "  sw_end->cond;\n" +
             "  case2->case3;\n" +
+            "  if1[_operator=\"===\"];\n" +
+            "  if2[_operator=\"===\"];\n" +
+            "  if3[_operator=\"===\"];\n" +
+            "  if4[_operator=\"===\"];\n" +            
+            "  if5[_operator=\"===\"];\n" +  
             "}",
             true
         );
@@ -483,6 +497,10 @@ public class Examples {
             "  case3->end;\n" +
             "  case4->end;\n" +
             "  d->end;\n" +
+            "  if1[_operator=\"===\"];\n" +
+            "  if2[_operator=\"===\"];\n" +
+            "  if3[_operator=\"===\"];\n" +
+            "  if4[_operator=\"===\"];\n" +
             "}",
             true
         );
