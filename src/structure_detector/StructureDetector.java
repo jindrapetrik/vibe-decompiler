@@ -2606,6 +2606,43 @@ public class StructureDetector {
     }
     
     /**
+     * Generates statements for a catch body that is inside a loop.
+     * Handles continue statements when catch body has edges back to the loop header.
+     */
+    private List<Statement> generateCatchBodyInLoop(Node startNode, Set<Node> catchBody, Set<Node> visited,
+                                               Map<Node, LoopStructure> loopHeaders, Map<Node, IfStructure> ifConditions,
+                                               Map<Node, LabeledBlockStructure> blockStarts, Map<Node, LabeledBreakEdge> labeledBreakEdges,
+                                               Set<Node> loopsNeedingLabels,
+                                               LoopStructure currentLoop, LabeledBlockStructure currentBlock,
+                                               Map<Node, SwitchStructure> switchStarts) {
+        List<Statement> result = new ArrayList<>();
+        
+        if (startNode == null || visited.contains(startNode)) {
+            return result;
+        }
+        
+        visited.add(startNode);
+        
+        // Output the statement
+        result.add(new ExpressionStatement(startNode.getLabel()));
+        
+        // Check successors
+        for (Node succ : startNode.succs) {
+            if (catchBody.contains(succ) && !visited.contains(succ)) {
+                // Continue processing within catch body
+                result.addAll(generateCatchBodyInLoop(succ, catchBody, visited,
+                                loopHeaders, ifConditions, blockStarts, labeledBreakEdges,
+                                loopsNeedingLabels, currentLoop, currentBlock, switchStarts));
+            } else if (currentLoop != null && succ.equals(currentLoop.header)) {
+                // Edge to loop header = continue statement
+                result.add(new ContinueStatement());
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
      * Generates statements for a specific set of nodes, starting from a given node.
      * Only generates statements for nodes that are in the given nodeSet.
      */
@@ -3233,6 +3270,51 @@ public class StructureDetector {
             
             // Continue after the switch (at the merge node)
             result.addAll(generateStatementsInLoop(switchStruct.mergeNode, visited, loopHeaders, ifConditions, labeledBreakEdges, blockStarts, loopsNeedingLabels, currentLoop, currentBlock, stopAt, switchStarts));
+            return result;
+        }
+        
+        // Check if this node is the start of a try block inside the loop
+        GroupedTryStructure groupedTry = findGroupedTryStructureStartingAt(node);
+        if (groupedTry != null) {
+            // Use the first handler's try body for generating statements
+            TryStructure firstTry = groupedTry.catchHandlers.get(0);
+            
+            // Generate try body statements
+            Set<Node> tryVisited = new HashSet<>();
+            List<Statement> tryBodyStmts = generateTryBodyStatements(node, firstTry, tryVisited,
+                                        loopHeaders, ifConditions, blockStarts, labeledBreakEdges, 
+                                        loopsNeedingLabels, currentLoop, currentBlock, switchStarts);
+            
+            // Generate catch blocks for each handler
+            List<TryStatement.CatchBlock> catchBlocks = new ArrayList<>();
+            for (TryStructure handler : groupedTry.catchHandlers) {
+                Node catchStart = findCatchStartNode(handler);
+                Set<Node> catchVisited = new HashSet<>();
+                List<Statement> catchBody = new ArrayList<>();
+                if (catchStart != null) {
+                    // Generate catch body statements - catch blocks may have continue to loop header
+                    catchBody = generateCatchBodyInLoop(catchStart, handler.catchBody, catchVisited,
+                                                loopHeaders, ifConditions, blockStarts, labeledBreakEdges,
+                                                loopsNeedingLabels, currentLoop, currentBlock, switchStarts);
+                }
+                catchBlocks.add(new TryStatement.CatchBlock(handler.exceptionIndex, catchBody));
+                
+                // Mark catch nodes as visited
+                visited.addAll(handler.catchBody);
+            }
+            
+            result.add(TryStatement.withMultipleCatch(tryBodyStmts, catchBlocks));
+            
+            // Mark all try nodes as visited
+            visited.addAll(groupedTry.tryBody);
+            
+            // Find the merge node (node after try-catch) and continue in the loop
+            Node tryCatchMerge = findTryCatchMergeNode(firstTry);
+            if (tryCatchMerge != null && currentLoop.body.contains(tryCatchMerge) && !visited.contains(tryCatchMerge)) {
+                result.addAll(generateStatementsInLoop(tryCatchMerge, visited, loopHeaders, ifConditions,
+                               labeledBreakEdges, blockStarts, loopsNeedingLabels, currentLoop, currentBlock, stopAt, switchStarts));
+            }
+            
             return result;
         }
         
@@ -4673,6 +4755,24 @@ public class StructureDetector {
             "}",
             "trybody1, a, b, trybody2 => catchbody1, c, d, catchbody2; " +
             "trybody1, a, b, trybody2 => catchbody3"
+        );
+
+        // Example 17: Try-Catch inside While Loop with Continue
+        System.out.println();
+        runExampleWithExceptions("Example 17: Try-Catch in While Loop with Continue",
+            "digraph {\n" +
+            "  start;\n" +
+            "  start->cond;\n" +
+            "  cond->end;\n" +
+            "  cond->a;\n" +
+            "  c1->cond;\n" +
+            "  c2->cond;\n" +
+            "  a->after_try;\n" +
+            "  after_try->cond;\n" +
+            "  end;\n" +
+            "}",
+            "a => c1; " +
+            "a => c2"
         );
     }
 }
