@@ -87,9 +87,7 @@ String pseudocode = detector.toPseudocode();
 ### Running Examples
 
 ```bash
-# Compile and run the Examples class
-javac -d out src/structure_detector/*.java src/structure_detector/statement/*.java
-java -cp out structure_detector.Examples
+ant run
 ```
 
 ## Author
