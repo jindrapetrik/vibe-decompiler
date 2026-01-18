@@ -234,7 +234,7 @@ public class StructureDetector {
             throw new IllegalArgumentException("No nodes found in DOT string");
         }
         
-        return new StructureDetector(firstNode, dotDialect);
+        return new StructureDetector(firstNode, nodes, dotDialect);
     }
     
     /**
