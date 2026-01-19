@@ -3792,6 +3792,21 @@ public class StructureDetector {
             BranchTargetResult trueBranchTarget = findBranchTarget(ifStruct.trueBranch, currentLoop, ifConditions, loopHeaders);
             BranchTargetResult falseBranchTarget = findBranchTarget(ifStruct.falseBranch, currentLoop, ifConditions, loopHeaders);
             
+            // Special case: if both branches merge at the same node inside the loop,
+            // and neither branch is empty, treat as a standard if-else
+            // This prevents detecting "continue" when both branches naturally converge
+            if (ifStruct.mergeNode != null && currentLoop.body.contains(ifStruct.mergeNode) &&
+                !ifStruct.trueBranch.equals(ifStruct.mergeNode) && 
+                !ifStruct.falseBranch.equals(ifStruct.mergeNode) &&
+                trueBranchTarget != null && falseBranchTarget != null &&
+                trueBranchTarget.isContinue && falseBranchTarget.isContinue &&
+                trueBranchTarget.target.equals(falseBranchTarget.target)) {
+                // Both branches lead to the loop header through the merge node
+                // Use standard if-else instead of treating as continue
+                trueBranchTarget = null;
+                falseBranchTarget = null;
+            }
+            
             boolean trueIsEmpty = ifStruct.trueBranch.equals(ifStruct.mergeNode) || 
                                   (!currentLoop.body.contains(ifStruct.trueBranch) && trueBranchTarget == null);
             boolean falseIsEmpty = ifStruct.falseBranch.equals(ifStruct.mergeNode) || 
