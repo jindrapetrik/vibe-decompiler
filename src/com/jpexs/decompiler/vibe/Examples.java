@@ -326,7 +326,7 @@ public class Examples {
                                 break block_0;
                             }
                             if (check_e20) {
-                                traceY;
+                                trace_Y;
                                 break block_2;
                             }
                             if (!ifr2) {
@@ -334,7 +334,7 @@ public class Examples {
                                 break block_0;
                             }
                             if (!check_e8) {
-                                BA;
+                                trace_BA;
                                 break loop_1;
                             }
                             trace_Z;                                    
