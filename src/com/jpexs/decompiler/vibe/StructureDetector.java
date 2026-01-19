@@ -3498,7 +3498,11 @@ public class StructureDetector {
             if (loopExit != null && node.succs.size() == 2) {
                 List<Statement> breakBody = new ArrayList<>();
                 breakBody.add(new BreakStatement(getLoopLabelId(node)));
-                loopBody.add(new IfStatement(node, true, breakBody));
+                // Check if exit is on first edge (true branch) or second edge (false branch)
+                boolean exitOnTrueBranch = node.succs.get(0).equals(loopExit);
+                // If exit is on true branch, condition is NOT negated: if (cond) { break; }
+                // If exit is on false branch, condition IS negated: if (!cond) { break; }
+                loopBody.add(new IfStatement(node, !exitOnTrueBranch, breakBody));
             }
             
             if (loopContinue != null) {
