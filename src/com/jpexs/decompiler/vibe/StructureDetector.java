@@ -185,9 +185,46 @@ public class StructureDetector {
      * @param loops the detected loop structures
      * @param ifs the detected if structures
      */
-    private void detectBlocksAndPreAssignLoopLabels(List<LoopStructure> loops, List<IfStructure> ifs) {
+    private void detectBlocksAndPreAssignLoopLabels(List<LoopStructure> loops, List<IfStructure> ifs, List<SwitchStructure> switches) {
         // First, detect labeled blocks for skip patterns (outside of loops)
-        detectSkipBlocks(ifs);
+        // Pass switches so blocks that will be absorbed by switches don't consume counter values
+        detectSkipBlocks(ifs, switches);
+        
+        // Build a lookup map for loops
+        Map<Node, LoopStructure> loopHeaders = new HashMap<>();
+        for (LoopStructure loop : loops) {
+            LoopStructure existing = loopHeaders.get(loop.header);
+            if (existing == null || loop.body.size() > existing.body.size()) {
+                loopHeaders.put(loop.header, loop);
+            }
+        }
+        
+        // Pre-assign switch labels for switches that need them (before loop labels)
+        // Switches need labels when they have breaks from inside nested loops
+        Map<Node, LabeledBlockStructure> blockStarts = new HashMap<>();
+        for (LabeledBlockStructure block : labeledBlocks) {
+            blockStarts.put(block.startNode, block);
+        }
+        
+        for (SwitchStructure sw : switches) {
+            LabeledBlockStructure switchBlock = blockStarts.get(sw.startNode);
+            if (switchBlock != null && !switchBlock.breaks.isEmpty() && switchBlock.endNode.equals(sw.mergeNode)) {
+                // Check if any break is from inside a nested loop
+                boolean needsLabel = false;
+                for (LabeledBreakEdge breakEdge : switchBlock.breaks) {
+                    for (LoopStructure loop : loopHeaders.values()) {
+                        if (loop.body.contains(breakEdge.from)) {
+                            needsLabel = true;
+                            break;
+                        }
+                    }
+                    if (needsLabel) break;
+                }
+                if (needsLabel) {
+                    getSwitchLabel(sw.startNode);
+                }
+            }
+        }
         
         // Pre-assign loop labels before detecting blocks inside loops
         // This ensures loops get sequential numbers before their inner blocks
@@ -1531,7 +1568,13 @@ public class StructureDetector {
      * }
      * A1: label_end: { ... }
      */
-    private void detectSkipBlocks(List<IfStructure> ifs) {
+    private void detectSkipBlocks(List<IfStructure> ifs, List<SwitchStructure> switches) {
+        // Build a set of switch start nodes - these blocks will be absorbed by switches
+        Set<Node> switchStartNodes = new HashSet<>();
+        for (SwitchStructure sw : switches) {
+            switchStartNodes.add(sw.startNode);
+        }
+        
         // Get all nodes that are inside loops
         List<LoopStructure> loops = detectLoops();
         Set<Node> nodesInLoops = new HashSet<>();
@@ -1597,8 +1640,19 @@ public class StructureDetector {
             
             // Generate unique label based on block start node to avoid conflicts
             String oldLabel = blockStart.getLabel() + "_block";
-            String label = getBlockLabel(oldLabel);
-            int labelId = getBlockLabelId(oldLabel);
+            
+            // If this block will be absorbed by a switch, don't consume a counter value
+            // The switch will use its own label (or no label if not needed)
+            String label;
+            int labelId;
+            if (switchStartNodes.contains(blockStart)) {
+                // Use a placeholder label that won't consume the counter
+                label = oldLabel;  // Use the original label as placeholder
+                labelId = -1;      // No global ID
+            } else {
+                label = getBlockLabel(oldLabel);
+                labelId = getBlockLabelId(oldLabel);
+            }
             
             // Check if this block already exists
             boolean exists = false;
@@ -1905,7 +1959,7 @@ public class StructureDetector {
         switchStructures.addAll(detectSwitches(ifs));
         
         // Detect blocks and pre-assign loop labels in correct order
-        detectBlocksAndPreAssignLoopLabels(loops, ifs);
+        detectBlocksAndPreAssignLoopLabels(loops, ifs, switchStructures);
         
         // Automatically detect labeled blocks for "return" patterns (nodes with no successors)
         LabeledBlockStructure returnBlock = detectReturnBlocks(loops, ifs);
@@ -3027,10 +3081,25 @@ public class StructureDetector {
             String switchLabel = null;
             int switchLabelId = -1;
             if (switchBlock != null && !switchBlock.breaks.isEmpty() && switchBlock.endNode.equals(switchStruct.mergeNode)) {
-                // This switch needs a label for breaks from within case bodies
-                // Use the switch label (with loop prefix) instead of block label
-                switchLabel = getSwitchLabel(node);
-                switchLabelId = getSwitchLabelId(node);
+                // Check if any break is from inside a nested loop - only then do we need a label
+                boolean needsLabel = false;
+                for (LabeledBreakEdge breakEdge : switchBlock.breaks) {
+                    // Check if this break is from inside a loop (not just a simple case break)
+                    for (LoopStructure loop : loopHeaders.values()) {
+                        if (loop.body.contains(breakEdge.from)) {
+                            needsLabel = true;
+                            break;
+                        }
+                    }
+                    if (needsLabel) break;
+                }
+                
+                if (needsLabel) {
+                    // This switch needs a label for breaks from within nested loops
+                    // Use the switch label (with loop prefix) instead of block label
+                    switchLabel = getSwitchLabel(node);
+                    switchLabelId = getSwitchLabelId(node);
+                }
             }
             
             // Generate switch statement
@@ -4634,7 +4703,7 @@ public class StructureDetector {
         System.out.println();
         
         // Detect blocks and pre-assign loop labels in correct order
-        detectBlocksAndPreAssignLoopLabels(loops, ifs);
+        detectBlocksAndPreAssignLoopLabels(loops, ifs, switchStructures);
         
         System.out.println("Labeled Block Structures (" + labeledBlocks.size() + "):");
         for (LabeledBlockStructure block : labeledBlocks) {
