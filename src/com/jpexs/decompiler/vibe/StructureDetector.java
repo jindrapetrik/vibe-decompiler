@@ -32,8 +32,6 @@ import java.util.*;
  * @author JPEXS
  */
 public class StructureDetector {
-
-    private static final String RETURN_BLOCK_LABEL = "r_block";
     
     /**
      * Minimum number of chained conditions required to detect a switch structure.
@@ -58,6 +56,8 @@ public class StructureDetector {
     private final Map<String, String> blockLabelMapping = new HashMap<>();
     // Maps block label strings to their assigned IDs
     private final Map<String, Integer> blockLabelIds = new HashMap<>();
+    // Reference to the detected return block (for special handling)
+    private LabeledBlockStructure detectedReturnBlock = null;
     //Code dialect
     private Dialect dialect;
 
@@ -1878,13 +1878,14 @@ public class StructureDetector {
             return null;
         }
         
-        // Create the return block
-        String label = RETURN_BLOCK_LABEL;
-        int labelId = -1;  // Special return block has no global ID
+        // Create the return block using the global label counter
+        String oldLabel = "return_block";
+        String label = getBlockLabel(oldLabel);
+        int labelId = getBlockLabelId(oldLabel);
         
         // Check if this block already exists
         for (LabeledBlockStructure block : labeledBlocks) {
-            if (block.label.equals(label)) {
+            if (block.startNode.equals(blockStart) && block.endNode.equals(exitNode)) {
                 return block;
             }
         }
@@ -1902,6 +1903,10 @@ public class StructureDetector {
         }
         
         labeledBlocks.add(returnBlock);
+        
+        // Store reference for special handling
+        detectedReturnBlock = returnBlock;
+        
         return returnBlock;
     }
 
@@ -1958,11 +1963,12 @@ public class StructureDetector {
         switchStructures.clear();
         switchStructures.addAll(detectSwitches(ifs));
         
+        // Detect return block FIRST so it gets block_0 if needed
+        // This ensures the outermost block gets the lowest number
+        LabeledBlockStructure returnBlock = detectReturnBlocks(loops, ifs);
+        
         // Detect blocks and pre-assign loop labels in correct order
         detectBlocksAndPreAssignLoopLabels(loops, ifs, switchStructures);
-        
-        // Automatically detect labeled blocks for "return" patterns (nodes with no successors)
-        LabeledBlockStructure returnBlock = detectReturnBlocks(loops, ifs);
         
         // Create lookup maps for quick access
         Map<Node, LoopStructure> loopHeaders = new HashMap<>();
@@ -1989,7 +1995,7 @@ public class StructureDetector {
         Map<Node, LabeledBlockStructure> blockStarts = new HashMap<>();
         for (LabeledBlockStructure block : labeledBlocks) {
             // Don't add return block to blockStarts - it's handled specially at top level
-            if (returnBlock != null && block.label.equals(RETURN_BLOCK_LABEL)) {
+            if (returnBlock != null && block == returnBlock) {
                 continue;
             }
             blockStarts.put(block.startNode, block);
@@ -2235,7 +2241,7 @@ public class StructureDetector {
                 
                 // Check if this node is a labeled block's end node
                 for (LabeledBlockStructure block : labeledBlocks) {
-                    if (current.equals(block.endNode) && !block.breaks.isEmpty() && !block.label.equals(RETURN_BLOCK_LABEL)) {
+                    if (current.equals(block.endNode) && !block.breaks.isEmpty() && block != detectedReturnBlock) {
                         return new BranchTargetResult(current, block.label, block.labelId, true);
                     }
                 }
@@ -2257,9 +2263,9 @@ public class StructureDetector {
             // Check if this node is a labeled block's end node
             // This takes priority because it represents continue semantics
             // Only report as labeled break if the block has actual breaks that need labeling
-            // But skip the return block (r_block) - that's handled specially for return nodes only
+            // But skip the return block - that's handled specially for return nodes only
             for (LabeledBlockStructure block : labeledBlocks) {
-                if (current.equals(block.endNode) && !block.breaks.isEmpty() && !block.label.equals(RETURN_BLOCK_LABEL)) {
+                if (current.equals(block.endNode) && !block.breaks.isEmpty() && block != detectedReturnBlock) {
                     // This path leads to a labeled block's end node - it's a break to that block
                     return new BranchTargetResult(current, block.label, block.labelId, true);
                 }
@@ -2277,16 +2283,13 @@ public class StructureDetector {
                 if (foundOutsideLoop) {
                     // Check if this is a "return" node that should target the return block
                     // (i.e., a node with no successors that is NOT the normal loop exit target)
-                    for (LabeledBlockStructure block : labeledBlocks) {
-                        if (block.label.equals(RETURN_BLOCK_LABEL)) {
-                            // Check if this node is a return node (has a break edge in the return block)
-                            for (LabeledBreakEdge breakEdge : block.breaks) {
-                                if (breakEdge.from.equals(current)) {
-                                    // This is a return node - use the return block label
-                                    return new BranchTargetResult(current, block.label, block.labelId, true);
-                                }
+                    if (detectedReturnBlock != null) {
+                        // Check if this node is a return node (has a break edge in the return block)
+                        for (LabeledBreakEdge breakEdge : detectedReturnBlock.breaks) {
+                            if (breakEdge.from.equals(current)) {
+                                // This is a return node - use the return block label
+                                return new BranchTargetResult(current, detectedReturnBlock.label, detectedReturnBlock.labelId, true);
                             }
-                            break;
                         }
                     }
                     // Normal break target
@@ -4179,15 +4182,12 @@ public class StructureDetector {
         // Check if target is a return node
         if (target != null && target.succs.isEmpty()) {
             boolean isReturnNode = false;
-            for (LabeledBlockStructure block : labeledBlocks) {
-                if (block.label.equals(RETURN_BLOCK_LABEL)) {
-                    for (LabeledBreakEdge breakEdge : block.breaks) {
-                        if (breakEdge.from.equals(target)) {
-                            isReturnNode = true;
-                            break;
-                        }
+            if (detectedReturnBlock != null) {
+                for (LabeledBreakEdge breakEdge : detectedReturnBlock.breaks) {
+                    if (breakEdge.from.equals(target)) {
+                        isReturnNode = true;
+                        break;
                     }
-                    break;
                 }
             }
             if (isReturnNode) {
