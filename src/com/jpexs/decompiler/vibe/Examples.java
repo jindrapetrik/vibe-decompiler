@@ -1079,15 +1079,17 @@ public class Examples {
         // Example 21: Nested ifs in loop with continue and break
         runExample("Example 21: Nested ifs in loop with continue and break",
             "digraph {\n" +
-            "  vara->ifa9;\n" +
+            "  vara->hdr;" +
+            "  hdr->end;" +
+            "  hdr->ifa9;\n"+
             "  ifa9->hel2;\n" +
             "  ifa9->ifa8;\n" +
             "  ifa8->ifa9b;\n" +
-            "  ifa8->ifa9;\n" +
+            "  ifa8->hdr;\n" +
             "  ifa9b->hel1;\n" +
             "  ifa9b->end;\n" +
             "  hel1->hel2;\n" +
-            "  hel2->ifa9;\n" +
+            "  hel2->hdr;\n" +
             "}"
         );
         /*
@@ -1095,6 +1097,9 @@ public class Examples {
         
         vara;
         while(true) {
+            if (hdr) {
+                break;
+            }
             if (!ifa9) {
                 if (!ifa8) {
                     continue;
