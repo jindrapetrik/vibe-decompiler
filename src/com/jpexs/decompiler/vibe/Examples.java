@@ -549,8 +549,8 @@ public class Examples {
             "digraph {\n" +
             "  entry->if_cond;\n" +
             "  if_cond->merge;\n" +
-            "  if_cond->else;\n" +
-            "  else->merge;\n" +
+            "  if_cond->then;\n" +
+            "  then->merge;\n" +
             "  merge->exit;\n" +
             "}"
         );
