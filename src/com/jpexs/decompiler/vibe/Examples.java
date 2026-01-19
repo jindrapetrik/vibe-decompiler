@@ -101,6 +101,18 @@ public class Examples {
             "  merge->exit;\n" +
             "}"
         );
+        /* 
+        Expected output:
+        
+            entry;
+            if (!if_cond) {
+                then;
+            } else {
+                else;
+            }
+            merge;
+            exit;
+        */
         
         // Example 2: While loop
         System.out.println();
@@ -112,6 +124,17 @@ public class Examples {
             "  loop_body->loop_header;\n" +
             "}"
         );
+        /* 
+        Expected output:
+            entry;
+            while(true) {
+                if(loop_header) {
+                    break;
+                }
+                loop_body;
+            }
+            exit;
+        */
         
         // Example 3: Loop with break and continue
         System.out.println();
@@ -128,7 +151,27 @@ public class Examples {
             "  cond_continue->loop_header;\n" +
             "  body_3->loop_header;\n" +
             "}"
-        );
+        );        
+        /*
+        Expected output:
+        
+        entry;
+        while(true) {
+            if (loop_header) {
+                break;
+            }
+            body_1;
+            if (cond_break) {
+                break;
+            }
+            body_2;
+            if (cond_continue) {
+                continue;
+            }
+            body_3;
+        }
+        exit;
+        */
         
         // Example 4: Nested loops
         System.out.println();
@@ -143,6 +186,24 @@ public class Examples {
             "  outer_end->outer_header;\n" +
             "}"
         );
+        /*
+        Expected output:
+        
+        entry;
+        while(true) {
+            if (outer_header) {
+                break;
+            }
+            while(true) {
+                if (inner_header) {
+                    break;
+                }
+                inner_body;
+            }
+            outer_end;
+        }
+        exit;
+        */
         
         // Example 5: If inside loop
         System.out.println();
@@ -151,26 +212,57 @@ public class Examples {
             "  entry->loop_header;\n" +
             "  loop_header->if_cond;\n" +
             "  loop_header->exit;\n" +
-            "  if_cond->if_then;\n" +
             "  if_cond->if_else;\n" +
+            "  if_cond->if_then;\n" +
             "  if_then->loop_end;\n" +
             "  if_else->loop_end;\n" +
             "  loop_end->loop_header;\n" +
             "}"
         );
+        /*
+        Expected output:
+        
+        entry;
+        while(true) {
+            if (loop_header) {
+                break;
+            }
+            if (!if_cond) {
+                if_then;
+            } else {
+                if_else;
+            }
+            loop_end;
+        }
+        exit;        
+        */
+        
         
         // Example 6: Chained edges (demonstrating a->b->c syntax)
         System.out.println();
         runExample("Example 6: Chained Edges",
             "digraph {\n" +
             "  start->if1;\n" +
-            "  if1->ontrue;\n" +
             "  if1->onfalse;\n" +
+            "  if1->ontrue;\n" +
             "  ontrue->merge;\n" +
             "  onfalse->merge;\n" +
             "  merge->after->exit;\n" +
             "}"
         );
+        /*
+        Expected output:
+        
+        start;
+        if (!if1) {
+            ontrue;
+        } else {
+            onfalse;
+        }
+        merge;
+        after;
+        exit;
+        */
         
         // Example 7: Complex nested loops with labeled breaks and returns
         System.out.println();
@@ -200,13 +292,68 @@ public class Examples {
             "  trace_BA->exit;\n" +
             "  inc_d->loop_b_cond;\n" +
             "  my_cont->ternar;\n" +
-            "  ternar->pre_inc_a;\n" +
             "  ternar->pre_inc_b;\n" +
+            "  ternar->pre_inc_a;\n" +
             "  pre_inc_a->inc_c;\n" +
             "  pre_inc_b->inc_c;\n" +
             "  inc_c->loop_a_cond;\n" +
             "}"
         );
+        /*
+        Expected output:
+        
+        entry;
+        block_0: {
+            loop_1: while(true) {
+                if (!loop_a_cond) {
+                    break;
+                }
+                block_2: {
+                    loop_3: while(true) {
+                        if (!loop_b_cond) {
+                            break;
+                        }
+                        block_4: {
+                            if (!inner_cond) {
+                                break;
+                            }
+                            if (check_e9) {
+                                trace_X;
+                                break loop_3;
+                            }
+                            if (!ifr) {
+                                r1;
+                                break block_0;
+                            }
+                            if (check_e20) {
+                                traceY;
+                                break block_2;
+                            }
+                            if (!ifr2) {
+                                r2;
+                                break block_0;
+                            }
+                            if (!check_e8) {
+                                BA;
+                                break loop_1;
+                            }
+                            trace_Z;                                    
+                        }
+                        inc_d;
+                    }
+                    trace_hello;
+                }
+                my_cont;
+                if (!ternar) {
+                    pre_inc_a;                    
+                } else {
+                    pre_inc_b;
+                }
+                inc_c;
+            }
+            exit;
+        }
+        */
         
         // Example 8: Do-while style loop (body first, then condition)
         System.out.println();
@@ -218,6 +365,18 @@ public class Examples {
             "  cond->exit;\n" +
             "}"
         );
+        /*
+        Expected output:
+        
+        entry;
+        while(true) {
+            body;
+            if (cond) {
+                break;
+            }
+        }
+        exit;
+        */        
 
         // Example 9: Labeled block with nested if-statements
         System.out.println();
@@ -237,6 +396,25 @@ public class Examples {
             "}",
             true
         );
+        /*
+        Expected output:
+        
+        start;
+        block_0: {
+            if (ifa) {
+                x;
+                if (ifc) {
+                    y;
+                    break;
+                }
+                z;
+            }
+            A1;
+            d;
+        }
+        A2;
+        end;
+        */
 
         // Example 10: Two nested while loops with labeled blocks inside
         System.out.println();
@@ -282,6 +460,61 @@ public class Examples {
             "}",
             true
         );
+        /*
+        Expected output:
+        
+        start;
+        block_0: {
+            if (ifa) {
+                x;
+                if (ifc) {
+                    y;
+                    break;
+                }
+                z;
+            }
+            A1;
+            d;
+        }
+        A2;
+        loop_1: while(true) {
+            start2;
+            block_2: {
+                if (ifex2) {
+                    break loop_1;
+                }
+                if (ifa2) {
+                    x2;
+                    if (ifc2) {
+                        y2;
+                        break;
+                    }
+                    z2;
+                }
+                A12;
+                d2;
+            }
+            A22;
+            start3;
+            block_3: {
+                if (ifex3) {
+                    break loop_1;
+                }
+                if (ifa3) {
+                    x3;
+                    if (ifc3) {
+                        y3;
+                        break;
+                    }
+                    z3;
+                }
+                A13;
+                d3;
+            }
+            A23;
+        }
+        end;
+        */
 
         // Example 11: Switch-like chain of conditions
         System.out.println();
@@ -308,6 +541,29 @@ public class Examples {
             "}",
             true
         );
+        /*
+        Expected output:
+        
+        start;
+        switch {
+            case if1:
+                case1;
+                break;
+            case if2:
+                case2;
+                break;
+            case if3:
+                case3;
+                break;
+            case if4:
+                case4;
+                break;
+            default:
+                d;
+                break;
+        }
+        end;
+         */
 
         // Example 12: Switch with fall-through, merged cases, and nested if-else
         System.out.println();
@@ -342,6 +598,35 @@ public class Examples {
             "}",
             true
         );
+        /*
+        Expected output:
+        
+        start;
+        switch {
+            case if1:
+                case1;
+                if (!n) {
+                    b;
+                } else {
+                    a;
+                }
+                c;
+                break;
+            case if2:
+                case2;
+            case if3:
+                case3;
+                break;
+            case if4:
+            case if5:
+                case45;
+                break;
+            default:
+                d;
+                break;
+        }
+        end;
+        */
 
         // Example 13: Loop with switch inside and labeled break/continue
         System.out.println();
@@ -386,6 +671,49 @@ public class Examples {
             "}",
             true
         );
+        /*
+        Expected output:
+        
+        start;
+        loop_0: while(true) {
+            if (cond) {
+                break;
+            }
+            switch {
+                case if1:
+                    case1;
+                    if (n) {
+                        a;
+                    } else {
+                        b;
+                    }
+                    c;
+                    if (m) {
+                        break loop_0;
+                    }
+                    t;
+                    if (v) {
+                        break loop_0;
+                    }
+                    w;
+                    break;
+                case if2:
+                    case2;
+                case if3:
+                    case3;
+                    break;
+                case if4:
+                case if5:
+                    case45;
+                    break;
+                default:
+                    d;
+                    break;
+            }
+            sw_end;
+        }
+        end;
+        */
 
         // Example 14: Try-Catch with if-else in both blocks
         System.out.println();
@@ -405,6 +733,27 @@ public class Examples {
             "}",
             "trybody1, a, b, trybody2 => catchbody1, c, d, catchbody2"
         );
+        /*
+        Expected output:
+        
+        start;
+        try {
+            if (trybody1) {
+                a;
+            } else {
+                b;
+            }
+            trybody2;
+        } catch(0) {
+            if (catchbody1) {
+                c;
+            } else {
+                d;
+            }
+            catchbody2;
+        }
+        end;
+        */
 
         // Example 15: Nested Try-Catch blocks
         System.out.println();
@@ -428,7 +777,35 @@ public class Examples {
             "before_try2, trybody1, a, b, trybody2, catchbody1, c, d, catchbody2, after_try2 => catchbody3; " +
             "trybody1, a, b, trybody2 => catchbody1, c, d, catchbody2"
         );
-
+        /*
+        Expected output:
+        
+        start;
+        try {
+            before_try2;
+            try {
+                if (trybody1) {
+                    a;
+                } else {
+                    b;
+                }
+                trybody2;
+            } catch(1) {
+                if (catchbody1) {
+                    c;
+                } else {
+                    d;
+                }
+                catchbody2;
+            }
+            after_try2;
+        } catch(0) {
+            catchbody3;
+        }
+        end;
+        */
+        
+        
         // Example 16: Multiple Catch Blocks (same try body, multiple handlers)
         System.out.println();
         runExampleWithExceptions("Example 16: Multiple Catch Blocks",
@@ -448,7 +825,30 @@ public class Examples {
             "}",
             "trybody1, a, b, trybody2 => catchbody1, c, d, catchbody2; " +
             "trybody1, a, b, trybody2 => catchbody3"
-        );
+        );       
+        /*
+        Expected output:
+        
+        start;
+        try {
+            if (trybody1) {
+                a;
+            } else {
+                b;
+            }
+            trybody2;
+        } catch(0) {
+            if (catchbody1) {
+                c;
+            } else {
+                d;
+            }
+            catchbody2;
+        } catch(1) {
+            catchbody3;
+        }
+        end;
+        */
 
         // Example 17: Try-Catch inside While Loop with Break and Continue
         System.out.println();
@@ -473,6 +873,36 @@ public class Examples {
             "a => c1, d, H, k; " +
             "a => c2"
         );
+        /*
+        Expected output:
+        
+        start;
+        while(true) {
+            if (cond) {
+                break;
+            }
+            try {
+                a;
+            } catch(0) {
+                if (c1) {
+                    break;
+                }
+                if (d) {
+                    while(true) {
+                        if (H) {
+                            break;
+                        }
+                    }
+                }
+                k;
+            } catch(1) {
+                c2;
+                continue;
+            }
+            after_try;
+        }
+        end;
+        */        
 
         // Example 18: Switch with labeled break from inner while loop
         System.out.println();
@@ -504,6 +934,38 @@ public class Examples {
             "}",
             true
         );
+        /*
+        Expected output:
+        
+        start;
+        loop_0:switch {
+            case if1:
+                case1;
+                break;
+            case if2:
+                case2;
+                loop_1: while(true) {
+                    if (h) {
+                        break;
+                    }
+                    if (g) {
+                        break loop_0;
+                    }
+                }
+                i;
+                break;
+            case if3:
+                case3;
+                break;
+            case if4:
+                case4;
+                break;
+            default:
+                d;
+                break;
+        }
+        end;
+        */
 
         // Example 19: Two nested while loops with labeled blocks inside and breaks to different loop levels
         System.out.println();
@@ -543,6 +1005,55 @@ public class Examples {
             "}",
             true
         );
+        /*
+        Expected output:
+        
+        start;
+        loop_0: while(true) {
+            start1;
+            loop_1: while(true) {
+                start2;
+                block_2: {
+                    if (ifex2) {
+                        break loop_1;
+                    }
+                    if (ifa2) {
+                        x2;
+                        if (ifc2) {
+                            y2;
+                            break;
+                        }
+                        z2;
+                    }
+                    A12;
+                    d2;
+                }
+                A22;
+                start3;
+                block_3: {
+                    if (ifex3) {
+                        break loop_1;
+                    }
+                    if (ifex4) {
+                        break loop_0;
+                    }
+                    if (ifa3) {
+                        x3;
+                        if (ifc3) {
+                            y3;
+                            break;
+                        }
+                        z3;
+                    }
+                    A13;
+                    d3;
+                }
+                A23;
+            }
+            end1;
+        }
+        end;
+        */
         
         // Example 20: Simple if no else
         runExample("Example 20: Simple If no else",
@@ -554,6 +1065,16 @@ public class Examples {
             "  merge->exit;\n" +
             "}"
         );
+        /*
+        Expected output:
+        
+        entry;
+        if (!if_cond) {
+            then;
+        }
+        merge;
+        exit;
+        */
         
         // Example 21: Nested ifs in loop with continue and break
         runExample("Example 21: Nested ifs in loop with continue and break",
@@ -569,5 +1090,23 @@ public class Examples {
             "  hel2->ifa9;\n" +
             "}"
         );
+        /*
+        Expected output:
+        
+        vara;
+        while(true) {
+            if (!ifa9) {
+                if (!ifa8) {
+                    continue;
+                }
+                if (!ifa9b) {
+                    break;
+                }
+                hel1;
+            }
+            hel2;
+        }
+        end;
+        */
     }
 }
