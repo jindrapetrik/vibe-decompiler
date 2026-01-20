@@ -1753,8 +1753,7 @@ public class StructureDetector {
         
         while (!queue.isEmpty()) {
             Node current = queue.poll();
-            if (visited.contains(current)) continue;
-            visited.add(current);
+            if (!visited.add(current)) continue; // Already visited
             
             for (Node succ : current.succs) {
                 if (succ.equals(target)) {
@@ -2365,10 +2364,14 @@ public class StructureDetector {
             }
             
             // Walk through single-successor nodes until we reach the block start
-            while (current != null && !current.equals(returnBlock.startNode) && !visited.contains(current)) {
+            // The visited check prevents infinite loops if there's a cycle
+            while (current != null && !current.equals(returnBlock.startNode)) {
+                if (visited.contains(current)) {
+                    break; // Already visited - prevent cycle
+                }
                 if (current.succs.size() == 1) {
-                    result.add(new ExpressionStatement(current));
                     visited.add(current);
+                    result.add(new ExpressionStatement(current));
                     current = current.succs.get(0);
                 } else {
                     // Multi-successor node - stop here
