@@ -1270,8 +1270,11 @@ public class StructureDetector {
                 // This is important because the if's detected merge node might be OUTSIDE the loop,
                 // but we still need to detect skip patterns to the back-edge source.
                 Node currentBackEdgeSrc = loop.backEdgeSource;
-                if (currentBackEdgeSrc != null && !currentBackEdgeSrc.equals(loop.header) &&
-                    !currentBackEdgeSrc.equals(cond) && loop.body.contains(currentBackEdgeSrc)) {
+                boolean hasValidBackEdgeSrc = currentBackEdgeSrc != null 
+                    && !currentBackEdgeSrc.equals(loop.header)
+                    && !currentBackEdgeSrc.equals(cond) 
+                    && loop.body.contains(currentBackEdgeSrc);
+                if (hasValidBackEdgeSrc) {
                     if (trueBranch.equals(currentBackEdgeSrc)) {
                         // First branch goes directly to back-edge source - NOT a skip pattern
                         // It's a normal if statement: if (!cond) { falseBranch } // then back-edge
@@ -1305,12 +1308,12 @@ public class StructureDetector {
                     }
                 }
                 
-                // If we detected a skip pattern to back-edge source, process it
-                // even if the if's merge node is outside the loop
-                if (branchGoesDirectlyToMerge && effectiveMerge != null) {
-                    // This is a skip pattern to the back-edge source
-                    // Continue processing below
-                } else {
+                // Skip blocks are used for patterns where one branch jumps directly to a merge point
+                // (like the back-edge source) while another branch takes a longer path.
+                // When we detect such a skip pattern to the back-edge source, we need to process it
+                // even if the if-structure's original merge node is outside the current loop.
+                boolean hasSkipPatternToBackEdge = branchGoesDirectlyToMerge && effectiveMerge != null;
+                if (!hasSkipPatternToBackEdge) {
                     // Standard case: require merge node to be inside the loop
                     if (mergeNode == null) continue;
                     if (!loop.body.contains(mergeNode)) continue;
