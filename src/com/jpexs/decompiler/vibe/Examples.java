@@ -1157,5 +1157,35 @@ public class Examples {
         }
         loc0058;
         */
+        
+        // Example 23: Loop with nested ifs and break
+        runExample("Example 23: Loop with nested ifs and break",
+            "digraph pcode {\n" +
+            "  start -> loc0000;\n" +
+            "  loc0040 -> loc0020;\n" +
+            "  loc0040 -> loc0044;\n" +
+            "  loc002d -> loc0040;\n" +
+            "  loc002d -> loc003a;\n" +
+            "  loc0020 -> loc002d;\n" +
+            "  loc0000 -> loc002d;\n" +
+            "  loc003a -> loc0040;\n" +
+            "}"
+        );
+        /*
+        Expected output:
+        
+        start;
+        loc0000;
+        while(true) {
+            if (!loc002d) {
+                loc003a;
+            }
+            if (!loc0040) {
+                break;
+            }
+            loc0020;
+        }
+        loc0044;
+        */
     }
 }
