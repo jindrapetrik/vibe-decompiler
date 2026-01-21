@@ -709,6 +709,9 @@ public class StructureDetector {
                 return false;
             }
             // Check if the other path is longer than the direct path
+            // Note: Since allPathsLeadTo returned true, shortestPathLength will return a valid distance.
+            // If somehow no path exists, it returns Integer.MAX_VALUE which is > 1, correctly triggering
+            // the skip detection.
             int otherPathLength = shortestPathLength(succ, endNode, body);
             if (otherPathLength > directPathLength) {
                 // The other branch takes a longer path to endNode
