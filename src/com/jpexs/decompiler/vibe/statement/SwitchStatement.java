@@ -19,17 +19,20 @@ public class SwitchStatement extends Statement {
         private final Node conditionNode;
         private final List<Statement> body;
         private final boolean isDefault;
+        private final boolean negated;
         
         /**
          * Creates a new case with condition.
          * 
          * @param condition the case condition (e.g., "if1")
          * @param conditionNode the node representing the case condition
+         * @param negated case condition is negated
          * @param body the statements in this case
          */
-        public Case(String condition, Node conditionNode, List<Statement> body) {
+        public Case(String condition, Node conditionNode, boolean negated, List<Statement> body) {
             this.condition = condition;
             this.conditionNode = conditionNode;
+            this.negated = negated;
             this.body = body != null ? new ArrayList<>(body) : new ArrayList<>();
             this.isDefault = false;
         }
@@ -44,6 +47,7 @@ public class SwitchStatement extends Statement {
             this.conditionNode = null;
             this.body = body != null ? new ArrayList<>(body) : new ArrayList<>();
             this.isDefault = true;
+            this.negated = false;
         }
         
         /**
@@ -81,6 +85,15 @@ public class SwitchStatement extends Statement {
         public boolean isDefault() {
             return isDefault;
         }
+
+        /**
+         * Checks if the condition is negated.
+         * 
+         * @return true if the condition is negated
+         */
+        public boolean isNegated() {
+            return negated;
+        }                
     }
     
     private final List<Case> cases;
@@ -160,7 +173,11 @@ public class SwitchStatement extends Statement {
             if (c.isDefault()) {
                 sb.append(innerIndent).append("default:\n");
             } else {
-                sb.append(innerIndent).append("case ").append(c.getCondition()).append(":\n");
+                if (c.isNegated()) {
+                    sb.append(innerIndent).append("case ").append("!").append(c.getCondition()).append(":\n");
+                } else {
+                    sb.append(innerIndent).append("case ").append(c.getCondition()).append(":\n");
+                }
             }
             
             for (Statement stmt : c.getBody()) {

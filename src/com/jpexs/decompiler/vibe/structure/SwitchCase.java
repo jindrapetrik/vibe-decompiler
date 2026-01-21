@@ -10,16 +10,18 @@ public class SwitchCase {
     public final Node caseBody;       // the case body node (e.g., "case1"), null for label-only merged cases
     public final boolean isDefault;   // true if this is the default case
     public final boolean hasBreak;    // true if this case should have a break statement
+    public final boolean negated;     // ture if the condition is negated
     
-    public SwitchCase(Node conditionNode, Node caseBody, boolean isDefault) {
-        this(conditionNode, caseBody, isDefault, true);
+    public SwitchCase(Node conditionNode, boolean negated, Node caseBody, boolean isDefault) {
+        this(conditionNode, negated, caseBody, isDefault, true);
     }
     
-    public SwitchCase(Node conditionNode, Node caseBody, boolean isDefault, boolean hasBreak) {
+    public SwitchCase(Node conditionNode, boolean negated, Node caseBody, boolean isDefault, boolean hasBreak) {
         this.conditionNode = conditionNode;
+        this.negated = negated;
         this.caseBody = caseBody;
         this.isDefault = isDefault;
-        this.hasBreak = hasBreak;
+        this.hasBreak = hasBreak;        
     }
     
     @Override

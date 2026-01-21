@@ -3531,7 +3531,7 @@ public class StructureDetector {
                 if (sc.isDefault) {
                     switchCases.add(new SwitchStatement.Case(caseBody));
                 } else {
-                    switchCases.add(new SwitchStatement.Case(sc.conditionNode.getLabel(), sc.conditionNode, caseBody));
+                    switchCases.add(new SwitchStatement.Case(sc.conditionNode.getLabel(), sc.conditionNode, sc.negated, caseBody));
                 }
             }
             
@@ -3864,7 +3864,7 @@ public class StructureDetector {
                 if (sc.isDefault) {
                     switchCases.add(new SwitchStatement.Case(caseBody));
                 } else {
-                    switchCases.add(new SwitchStatement.Case(sc.conditionNode.getLabel(), sc.conditionNode, caseBody));
+                    switchCases.add(new SwitchStatement.Case(sc.conditionNode.getLabel(), sc.conditionNode, sc.negated, caseBody));
                 }
             }
             
@@ -4629,7 +4629,7 @@ public class StructureDetector {
                     if (caseStmt.isDefault()) {
                         newCases.add(new SwitchStatement.Case(newCaseBody));
                     } else {
-                        newCases.add(new SwitchStatement.Case(caseStmt.getCondition(), caseStmt.getConditionNode(), newCaseBody));
+                        newCases.add(new SwitchStatement.Case(caseStmt.getCondition(), caseStmt.getConditionNode(), caseStmt.isNegated(), newCaseBody));
                     }
                 }
                 result.add(new SwitchStatement(newCases, switchStmt.getLabel(), switchStmt.getLabelId()));
@@ -4981,6 +4981,7 @@ public class StructureDetector {
             // Try to build a switch chain starting from this condition
             // First pass: collect all conditions and their case bodies
             List<Node> conditionChain = new ArrayList<>();
+            List<Boolean> conditionChainNegated = new ArrayList<>();
             List<Node> caseBodies = new ArrayList<>();
             Node currentCond = startCond;
             Node defaultBody = null;
@@ -5016,6 +5017,7 @@ public class StructureDetector {
                 Node nextCondBranch = isNotEquals ? currentIf.trueBranch : currentIf.falseBranch;
                 
                 conditionChain.add(currentCond);
+                conditionChainNegated.add(isNotEquals);
                 caseBodies.add(caseBody);
                 
                 if (conditionNodes.contains(nextCondBranch)) {
@@ -5130,13 +5132,14 @@ public class StructureDetector {
             
             for (int i = 0; i < conditionChain.size(); i++) {
                 Node cond = conditionChain.get(i);
+                boolean negated = conditionChainNegated.get(i);
                 Node body = caseBodies.get(i);
                 
                 // Check if the next condition has the same case body (merged case)
                 // In that case, add a label-only case (no body, no break)
                 if (i + 1 < conditionChain.size() && caseBodies.get(i + 1).equals(body)) {
                     // This is a label-only merged case
-                    cases.add(new SwitchCase(cond, null, false, false));
+                    cases.add(new SwitchCase(cond, negated, null, false, false));
                 } else {
                     // Check if this case body falls through to the next case body
                     boolean hasFallThrough = false;
@@ -5152,12 +5155,12 @@ public class StructureDetector {
                     }
                     
                     // Add case with body
-                    cases.add(new SwitchCase(cond, body, false, !hasFallThrough));
+                    cases.add(new SwitchCase(cond, negated, body, false, !hasFallThrough));
                 }
             }
             
             // Add default case
-            cases.add(new SwitchCase(null, defaultBody, true, true));
+            cases.add(new SwitchCase(null, false, defaultBody, true, true));
             
             // Mark all condition nodes AND case body nodes as processed
             for (int i = 0; i < conditionChain.size(); i++) {
