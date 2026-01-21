@@ -1361,24 +1361,21 @@ public class Examples {
             "}"
         );
         /*
-        Expected output (labeled block to handle skip pattern):
+        Expected output (labeled block with negated conditions to avoid node duplication):
         
-        start;
         loc0000;
         while(true) {
             if (loc0051) {
                 break;
             }
             block_1: {
-                if (loc0066) {
-                    loc00ab;
-                    break block_1;
-                }
-                if (loc0085) {
+                if (!loc0066) {
+                    if (!loc0085) {
+                        break;
+                    }
                     loc00a5;
-                    loc00ab;
                 }
-                break block_1;
+                loc00ab;
             }
             loc00b1;
         }

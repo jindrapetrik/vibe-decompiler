@@ -4310,6 +4310,50 @@ public class StructureDetector {
         // Check if this is an if condition inside the loop
         IfStructure ifStruct = ifConditions.get(node);
         if (ifStruct != null) {
+            // Special case: inside a labeled block, when true branch goes directly to an internal
+            // merge point and false branch contains a skip to the block's end.
+            // Use negated condition to avoid node duplication: if (!cond) { false_branch_with_skip } internal_merge;
+            if (currentBlock != null && !currentBlock.breaks.isEmpty()) {
+                // Check if true branch goes to an internal node (not the block end)
+                // and false branch has a skip pattern to the block end
+                Node trueBranch = ifStruct.trueBranch;
+                Node falseBranch = ifStruct.falseBranch;
+                
+                // Find if there's a labeled break in the false branch path
+                boolean falseBranchHasSkip = false;
+                for (LabeledBreakEdge breakEdge : currentBlock.breaks) {
+                    if (isReachableWithinLoop(falseBranch, breakEdge.from, currentLoop)) {
+                        falseBranchHasSkip = true;
+                        break;
+                    }
+                }
+                
+                // Check if true branch goes to an internal merge point (not the block end)
+                // and both the true branch and the non-skip path of false branch converge there
+                if (falseBranchHasSkip && currentBlock.body.contains(trueBranch) && 
+                    !trueBranch.equals(currentBlock.endNode)) {
+                    // Check if the non-skip paths from false branch also reach trueBranch
+                    boolean falseBranchReachesTrueBranch = isReachableWithinLoop(falseBranch, trueBranch, currentLoop);
+                    
+                    if (falseBranchReachesTrueBranch) {
+                        // Use negated condition: if (!cond) { false_branch } trueBranch;
+                        List<Statement> onTrue = new ArrayList<>();
+                        Set<Node> falseVisited = new HashSet<>(visited);
+                        // Process false branch, stopping at trueBranch (internal merge)
+                        onTrue.addAll(generateStatementsInLoop(falseBranch, falseVisited, loopHeaders, ifConditions, 
+                                      labeledBreakEdges, blockStarts, loopsNeedingLabels, currentLoop, currentBlock, trueBranch, switchStarts));
+                        result.add(new IfStatement(node, true, onTrue)); // negated condition
+                        
+                        // Output the internal merge point (trueBranch) and continue from there
+                        Set<Node> mergeVisited = new HashSet<>(visited);
+                        mergeVisited.addAll(falseVisited);
+                        result.addAll(generateStatementsInLoop(trueBranch, mergeVisited, loopHeaders, ifConditions, 
+                                      labeledBreakEdges, blockStarts, loopsNeedingLabels, currentLoop, currentBlock, stopAt, switchStarts));
+                        return result;
+                    }
+                }
+            }
+            
             // Check if true branch leads to a break
             BranchTargetResult trueBranchTarget = findBranchTarget(ifStruct.trueBranch, currentLoop, ifConditions, loopHeaders);
             BranchTargetResult falseBranchTarget = findBranchTarget(ifStruct.falseBranch, currentLoop, ifConditions, loopHeaders);
