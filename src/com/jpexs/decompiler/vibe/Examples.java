@@ -1313,7 +1313,7 @@ public class Examples {
             "}"
         );
         /*
-        Expected output (no unnecessary block_1 wrapper):
+        Expected output:
         
         start;
         loc0000;
@@ -1361,7 +1361,7 @@ public class Examples {
             "}"
         );
         /*
-        Expected output (labeled block with negated conditions to avoid node duplication):
+        Expected output:
         
         loc0000;
         while(true) {
