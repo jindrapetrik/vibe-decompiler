@@ -2365,6 +2365,11 @@ public class StructureDetector {
             // Also check if there are loop breaks from inside a labeled block
             // In this case, the IF condition that breaks needs to use the loop label
             for (BreakEdge breakEdge : loop.breaks) {
+                // Skip if the break is from the loop header itself - that's the natural loop exit
+                // and doesn't need a labeled break (just unlabeled break works)
+                if (breakEdge.from.equals(loop.header)) {
+                    continue;
+                }
                 // Check if this break originates from inside a labeled block
                 for (LabeledBlockStructure block : labeledBlocks) {
                     // Skip the return block since it encompasses the entire program
