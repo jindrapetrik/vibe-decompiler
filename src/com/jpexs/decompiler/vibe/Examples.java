@@ -1441,7 +1441,7 @@ public class Examples {
                         }
                         loc00f1;                
                     default:
-                        loc00f7 
+                        loc00f7;
                 }
                 loc00fd;
             }

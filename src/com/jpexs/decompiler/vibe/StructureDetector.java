@@ -5266,14 +5266,16 @@ public class StructureDetector {
                 int count = entry.getValue();
                 
                 // Check if this node is inside the same loop as the switch
-                boolean isInLoop = true;
+                // If not in a loop (switchLoopHeader is null), treat as not in loop context
+                boolean isInLoop = false;
                 if (switchLoopHeader != null) {
                     Set<Node> loopReachable = getReachableNodes(switchLoopHeader);
                     isInLoop = loopReachable.contains(candidate) && 
                                getReachableNodes(candidate).contains(switchLoopHeader);
                 }
                 
-                if (isInLoop && count >= 2 && count > maxDirectCount) {
+                // Accept nodes inside loop, or any node if not in loop context
+                if ((isInLoop || switchLoopHeader == null) && count >= 2 && count > maxDirectCount) {
                     maxDirectCount = count;
                     mergeNode = candidate;
                 }
@@ -5292,14 +5294,14 @@ public class StructureDetector {
                     }
                     
                     // Check if this node is inside the same loop
-                    boolean isInLoop = true;
+                    boolean isInLoop = false;
                     if (switchLoopHeader != null) {
                         Set<Node> loopReachable = getReachableNodes(switchLoopHeader);
                         isInLoop = loopReachable.contains(candidate) && 
                                    getReachableNodes(candidate).contains(switchLoopHeader);
                     }
                     
-                    if (isInLoop && count > maxIndirectCount) {
+                    if ((isInLoop || switchLoopHeader == null) && count > maxIndirectCount) {
                         maxIndirectCount = count;
                         outerMergeNode = candidate;
                     }
@@ -5314,14 +5316,14 @@ public class StructureDetector {
                     // Check if merge node leads to this candidate
                     Set<Node> mergeReachable = getReachableNodes(mergeNode);
                     if (mergeReachable.contains(candidate)) {
-                        boolean isInLoop = true;
+                        boolean isInLoop = false;
                         if (switchLoopHeader != null) {
                             Set<Node> loopReachable = getReachableNodes(switchLoopHeader);
                             isInLoop = loopReachable.contains(candidate) && 
                                        getReachableNodes(candidate).contains(switchLoopHeader);
                         }
                         
-                        if (isInLoop && (outerMergeNode == null || entry.getValue() > maxIndirectCount)) {
+                        if ((isInLoop || switchLoopHeader == null) && (outerMergeNode == null || entry.getValue() > maxIndirectCount)) {
                             outerMergeNode = candidate;
                         }
                     }
@@ -5334,14 +5336,14 @@ public class StructureDetector {
                     Node candidate = entry.getKey();
                     int count = entry.getValue();
                     
-                    boolean isInLoop = true;
+                    boolean isInLoop = false;
                     if (switchLoopHeader != null) {
                         Set<Node> loopReachable = getReachableNodes(switchLoopHeader);
                         isInLoop = loopReachable.contains(candidate) && 
                                    getReachableNodes(candidate).contains(switchLoopHeader);
                     }
                     
-                    if (isInLoop && count > maxIndirectCount) {
+                    if ((isInLoop || switchLoopHeader == null) && count > maxIndirectCount) {
                         maxIndirectCount = count;
                         mergeNode = candidate;
                     }
