@@ -1556,5 +1556,44 @@ public class Examples {
         loc00a3;
         loc00aa;
         */
+        
+        // Example 32: Loop header with labeled block and skip pattern (variant)
+        runExample("Example 32: Loop header with labeled block and skip pattern (variant)",
+            "digraph pcode {\n" +
+            "start -> loc0000;\n" +
+            "loc0075 -> loc0081;\n" +
+            "loc0081 -> loc008b;\n" +
+            "loc00bb -> loc00c2;\n" +
+            "loc0055 -> loc0075;\n" +
+            "loc0055 -> loc008b;\n" +
+            "loc008b -> loc0039;\n" +
+            "loc008b -> loc00bb;\n" +
+            "loc0000 -> loc0039;\n" +
+            "loc0039 -> loc0081;\n" +
+            "loc0039 -> loc0055;\n" +
+            "}"
+        );
+        /*
+        Expected output:
+        
+        start;
+        loc0000;
+        while(true) {
+            block_1: {
+                if (!loc0039) {
+                    if (!loc0055) {
+                        break;
+                    }
+                    loc0075;
+                }
+                loc0081;
+            }
+            if (!loc008b) {
+                break;
+            }
+        }
+        loc00bb;
+        loc00c2;
+        */
     }
 }

@@ -931,6 +931,13 @@ public class StructureDetector {
         if (start.equals(target)) {
             return true;
         }
+        // If target is the loop header, it should only be reachable if we explicitly
+        // want to check for back-edge reachability, which this function doesn't support.
+        // The header is the loop entry point and shouldn't be "reachable" from within
+        // the loop body in the context of skip block detection.
+        if (target.equals(loop.header)) {
+            return false;
+        }
         Set<Node> visited = new HashSet<>();
         Queue<Node> queue = new LinkedList<>();
         queue.add(start);
@@ -1668,6 +1675,9 @@ public class StructureDetector {
         // Check each predecessor of cond
         for (Node pred : cond.preds) {
             if (!loop.body.contains(pred)) continue;
+            // Don't use the merge node itself as a parent - it would cause the block
+            // start to equal the convergence point, preventing block creation
+            if (pred.equals(mergeNode)) continue;
             
             // Check if pred is a condition node
             for (IfStructure ifStruct : ifs) {
