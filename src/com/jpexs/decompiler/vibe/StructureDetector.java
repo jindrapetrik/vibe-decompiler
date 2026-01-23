@@ -5730,12 +5730,59 @@ public class StructureDetector {
             }
             
             // Second pass: build cases with merged conditions, fall-through, and skip detection
+            // Also detect where default should be inserted (when case body equals default body)
             List<SwitchCase> cases = new ArrayList<>();
+            boolean defaultInserted = false;
+            int defaultInsertPosition = -1; // Position where default should be inserted
+            
+            // First, find if any case body equals default body
+            for (int i = 0; i < caseBodies.size(); i++) {
+                if (caseBodies.get(i).equals(defaultBody)) {
+                    defaultInsertPosition = i;
+                    break;
+                }
+            }
             
             for (int i = 0; i < conditionChain.size(); i++) {
                 Node cond = conditionChain.get(i);
                 boolean negated = conditionChainNegated.get(i);
                 Node body = caseBodies.get(i);
+                
+                // Check if this case body equals the default body
+                // In that case, add a label-only case and insert default right after
+                if (body.equals(defaultBody)) {
+                    // This case shares body with default - add label-only case
+                    cases.add(new SwitchCase(cond, negated, null, false, false, false));
+                    
+                    // Insert default here with the shared body
+                    // Check if default falls through to next case body
+                    boolean defaultFallsThrough = false;
+                    Node nextCaseBody = (i + 1 < caseBodies.size()) ? caseBodies.get(i + 1) : null;
+                    
+                    if (nextCaseBody != null) {
+                        // Check if default body leads to next case body
+                        for (Node succ : defaultBody.succs) {
+                            if (succ.equals(nextCaseBody)) {
+                                defaultFallsThrough = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // If not falling through to next case, check if it falls through to merge
+                    if (!defaultFallsThrough) {
+                        for (Node succ : defaultBody.succs) {
+                            if (succ.equals(mergeNode)) {
+                                defaultFallsThrough = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    cases.add(new SwitchCase(null, false, defaultBody, true, !defaultFallsThrough, false));
+                    defaultInserted = true;
+                    continue;
+                }
                 
                 // Check if the next condition has the same case body (merged case)
                 // In that case, add a label-only case (no body, no break)
@@ -5745,13 +5792,23 @@ public class StructureDetector {
                 } else {
                     // Check if this case body falls through to the next case body or default
                     boolean hasFallThrough = false;
-                    Node nextTarget = (i + 1 < conditionChain.size()) ? caseBodies.get(i + 1) : defaultBody;
+                    Node nextTarget;
+                    
+                    // If default was already inserted, next target is next case body (or merge)
+                    // Otherwise, default is still at the end, so fall through to next case or default
+                    if (defaultInserted || (defaultInsertPosition >= 0 && i >= defaultInsertPosition)) {
+                        nextTarget = (i + 1 < conditionChain.size()) ? caseBodies.get(i + 1) : mergeNode;
+                    } else {
+                        nextTarget = (i + 1 < conditionChain.size()) ? caseBodies.get(i + 1) : defaultBody;
+                    }
                     
                     // Check direct fall-through
-                    for (Node succ : body.succs) {
-                        if (succ.equals(nextTarget)) {
-                            hasFallThrough = true;
-                            break;
+                    if (nextTarget != null) {
+                        for (Node succ : body.succs) {
+                            if (succ.equals(nextTarget)) {
+                                hasFallThrough = true;
+                                break;
+                            }
                         }
                     }
                     
@@ -5796,15 +5853,17 @@ public class StructureDetector {
                 }
             }
             
-            // Add default case - check if it falls through to merge (no break needed)
-            boolean defaultHasBreak = true;
-            for (Node succ : defaultBody.succs) {
-                if (succ.equals(mergeNode)) {
-                    defaultHasBreak = false;
-                    break;
+            // Add default case at the end if not already inserted
+            if (!defaultInserted) {
+                boolean defaultHasBreak = true;
+                for (Node succ : defaultBody.succs) {
+                    if (succ.equals(mergeNode)) {
+                        defaultHasBreak = false;
+                        break;
+                    }
                 }
+                cases.add(new SwitchCase(null, false, defaultBody, true, defaultHasBreak, false));
             }
-            cases.add(new SwitchCase(null, false, defaultBody, true, defaultHasBreak, false));
             
             // Mark all condition nodes AND case body nodes as processed
             for (int i = 0; i < conditionChain.size(); i++) {

@@ -1591,5 +1591,42 @@ public class Examples {
         loc00bb;
         loc00c2;
         */
+        
+        // Example 33: Switch with default in middle (case and default share body)
+        runExample("Example 33: Switch with default in middle position",
+            "digraph pcode {\n" +
+            "start -> loc0000;\n" +
+            "loc009c -> loc00a2;\n" +
+            "loc00a2 -> loc00a9;\n" +
+            "loc0066 -> loc0091;\n" +
+            "loc0066 -> loc0076;\n" +
+            "loc0076 -> loc009c;\n" +
+            "loc0076 -> loc008b;\n" +
+            "loc0000 -> loc008b;\n" +
+            "loc0000 -> loc0066;\n" +
+            "loc008b -> loc0091;\n" +
+            "loc0091 -> loc00a2;\n" +
+            "loc0000[_operator=\"===\"];\n" +
+            "loc0066[_operator=\"===\"];\n" +
+            "loc0076[_operator=\"===\"];\n" +
+            "}"
+        );
+        /*
+        Expected output:
+        
+        start;
+        switch {
+            case loc0000:
+            default:
+                loc008b;
+            case loc0066:
+                loc0091;
+                break;
+            case loc0076:
+                loc009c;
+        }
+        loc00a2;
+        loc00a9;
+        */
     }
 }
