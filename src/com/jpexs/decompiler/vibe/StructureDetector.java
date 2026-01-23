@@ -1645,7 +1645,9 @@ public class StructureDetector {
                         if (earliest == null || isReachableWithinLoop(parent, earliest, pattern.loop)) {
                             earliest = parent;
                         }
-                        // Don't override parent with cond - the parent should be the block start
+                        // Don't override parent with cond - the parent condition encompasses
+                        // a broader scope and should remain as the block start since the skip
+                        // pattern originates from within the parent's branches
                         continue;
                     }
                 }
@@ -1674,9 +1676,10 @@ public class StructureDetector {
                     if (isReachableWithinLoop(ifStruct.trueBranch, cond, loop) ||
                         isReachableWithinLoop(ifStruct.falseBranch, cond, loop)) {
                         // This is a potential parent
-                        // If the parent is the loop header, don't look for grandparent (stop here)
-                        // The loop header can be a valid block start when it's a conditional
-                        // that contains skip patterns in its branches
+                        // If the parent is the loop header, use it as the block start without
+                        // searching for a grandparent. The loop header represents the natural
+                        // boundary for skip block detection within loop structures, and searching
+                        // beyond it would incorrectly extend the block scope outside the loop body.
                         if (pred.equals(loop.header)) {
                             return pred;
                         }
@@ -3918,9 +3921,10 @@ public class StructureDetector {
                 
                 if (mergeNode != null) {
                     // Both branches merge at a common node inside the loop
-                    // Check if the true branch IS the actual convergence point
-                    // (i.e., false branch eventually reaches true branch)
-                    // In this case, use if-then (not if-else) with true branch as continuation
+                    // Check if the false branch can flow into the true branch, making the
+                    // true branch a continuation point rather than an alternative branch.
+                    // This handles cases like: if (!cond) { false_branch } true_branch
+                    // where false_branch paths either break out or converge at true_branch.
                     boolean falseBranchReachesTrueBranch = canReachNodeWithin(falseBranch, trueBranch, loop.body);
                     
                     if (falseBranchReachesTrueBranch) {
@@ -4421,8 +4425,9 @@ public class StructureDetector {
         // Check for labeled break first (higher priority than regular break)
         LabeledBreakEdge labeledBreak = labeledBreakEdges.get(node);
         // Skip labeled break if target is the stopAt node (handled by caller, e.g., switch case)
-        // BUT: don't skip if we're inside a labeled block and the break is to the block's end node
-        // because we still need to generate the break statement
+        // BUT: don't skip if we're inside a labeled block and the break targets the block's end node.
+        // These breaks need explicit break statements to exit the block, even though they target
+        // the stopAt node - without the break statement, control would incorrectly fall through.
         if (labeledBreak != null && stopAt != null && labeledBreak.to.equals(stopAt)) {
             boolean isBreakToCurrentBlock = currentBlock != null && labeledBreak.to.equals(currentBlock.endNode);
             if (!isBreakToCurrentBlock) {
