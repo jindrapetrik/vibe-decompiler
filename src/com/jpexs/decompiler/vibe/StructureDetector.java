@@ -3782,7 +3782,9 @@ public class StructureDetector {
                     if (sc.hasBreak) {
                         stopNode = switchStruct.mergeNode;
                     } else {
-                        // Fall-through case: stop at next case body, or merge node for last case
+                        // Fall-through case: stop at next case body.
+                        // For the last case, there's no next body, so use merge node to prevent
+                        // merge node content from being included in the case body.
                         stopNode = caseBodyToNextBody.get(sc.caseBody);
                         if (stopNode == null) {
                             stopNode = switchStruct.mergeNode;
@@ -3798,8 +3800,8 @@ public class StructureDetector {
                     caseBody.addAll(bodyStatements);
                 }
                 
-                // Add break statement only if this case has a break
-                // Don't add break for the last case - it naturally falls through to the switch end
+                // Add break statement only if this case has a break.
+                // Don't add break for the last case - execution naturally exits the switch.
                 if (sc.hasBreak && !isLastCase) {
                     caseBody.add(new BreakStatement(switchLabelId));
                 }
@@ -4271,8 +4273,8 @@ public class StructureDetector {
                     }
                 }
                 
-                // Add break statement based on case type
-                // Don't add break for the last case - it naturally falls through to the switch end
+                // Add break statement based on case type.
+                // Don't add break for the last case - execution naturally exits the switch.
                 if (sc.hasBreak && !isLastCase) {
                     if (sc.skipsMerge && needsOuterBlock) {
                         // Case skips merge - use labeled break to outer block
