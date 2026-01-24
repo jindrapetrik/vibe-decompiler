@@ -5996,7 +5996,7 @@ public class StructureDetector {
         
         // Auto-detect switch structures
         switchStructures.clear();
-        switchStructures.addAll(detectSwitches(ifs));
+        //switchStructures.addAll(detectSwitches(ifs));
         System.out.println("Detected Switch Structures (" + switchStructures.size() + "):");
         for (SwitchStructure sw : switchStructures) {
             System.out.println("  " + sw);
