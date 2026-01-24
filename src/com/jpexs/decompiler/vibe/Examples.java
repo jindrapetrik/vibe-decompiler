@@ -754,10 +754,10 @@ public class Examples {
                     case3;
                 } else {
                     case1;
-                    if(n) {
-                        a;
-                    } else {
+                    if(!n) {
                         b;
+                    } else {
+                        a;
                     }           
                     c;
                     if (m) {
