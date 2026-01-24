@@ -4607,17 +4607,14 @@ public class StructureDetector {
             }
             // Handle non-conditional nodes with labeled breaks
             // This is for simple statements that lead directly to a block's end node
+            // When a node leads directly to the block end, no explicit break is needed
+            // because the block structure will naturally end there
             if (node.succs.size() == 1 && node.succs.get(0).equals(labeledBreak.to)) {
                 visited.add(node);
-                // Output the node as a statement, then break to the block
+                // Output the node as a statement
                 result.add(new ExpressionStatement(node));
-                // Use unlabeled break when breaking out of immediately enclosing block
-                boolean useUnlabeledBreak = currentBlock != null && labeledBreak.label.equals(currentBlock.label);
-                if (useUnlabeledBreak) {
-                    result.add(new BreakStatement(currentBlock.labelId));
-                } else {
-                    result.add(new BreakStatement(labeledBreak.label, labeledBreak.labelId));
-                }
+                // Don't add explicit break - control will naturally flow to the block end
+                // This matches the behavior of generateStatementsInBlock for such cases
                 return result;
             }
         }
@@ -5137,7 +5134,14 @@ public class StructureDetector {
                     // Check if true branch goes directly to the stopAt (outer merge)
                     // If so, don't generate else clause - let stopAt handling process it
                     if (ifStruct.trueBranch.equals(stopAt)) {
-                        // Generate: if (!cond) { false_branch } // no else, true branch is stopAt
+                        // Generate: if (!cond) { false_branch; break; } // no else, true branch is stopAt
+                        // Add a break at the end of false branch since true branch exits to outer merge
+                        // and we need to exit to the block end as well
+                        if (currentBlock != null && ifStruct.mergeNode != null && 
+                            ifStruct.mergeNode.equals(currentBlock.endNode)) {
+                            // False branch ends at the block end - add a break
+                            onFalse.add(new BreakStatement(currentBlock.labelId));
+                        }
                         result.add(new IfStatement(node, true, onFalse));  // negated condition, no else
                         // Don't process merge here - let outer handling do it
                     } else {
@@ -5221,6 +5225,22 @@ public class StructureDetector {
                         Set<Node> falseVisited = new HashSet<>(visited);
                         result.addAll(generateStatementsInLoop(ifStruct.falseBranch, falseVisited, loopHeaders, ifConditions, labeledBreakEdges, blockStarts, loopsNeedingLabels, currentLoop, currentBlock, stopAt, switchStarts));
                     }
+                    return result;
+                }
+                
+                // F) When both branches lead to labeled block breaks to the same target (block end),
+                // prefer negated condition with false branch inside (like generateStatementsInBlock)
+                // This produces: if (!cond) { false_branch; break; } instead of if (cond) { true_branch; break; } false_branch;
+                if (falseBranchTarget != null && 
+                    trueBranchTarget.isLabeledBlockBreak && falseBranchTarget.isLabeledBlockBreak &&
+                    trueBranchTarget.target.equals(falseBranchTarget.target) &&
+                    currentBlock != null && trueBranchTarget.target.equals(currentBlock.endNode)) {
+                    // Both branches break to block end - prefer negated with false branch
+                    List<Node> falsePath = findPathToTarget(ifStruct.falseBranch, falseBranchTarget.target, ifConditions);
+                    List<Statement> breakBody = outputPathAndBreakStatements(falsePath, falseBranchTarget.breakLabel, falseBranchTarget.breakLabelId, currentLoop, currentBlock, falseBranchTarget.target);
+                    result.add(new IfStatement(node, true, breakBody));  // negated condition
+                    
+                    // Don't output true branch here - it will be handled by the outer merge at case45
                     return result;
                 }
                 
@@ -5475,11 +5495,10 @@ public class StructureDetector {
         }
         
         // Use unlabeled break when breaking out of immediately enclosing block
-        // BUT: if we're inside a loop within the block, we need a labeled break
-        // because unlabeled break would only exit the loop, not the block
+        // An unlabeled break inside a labeled block exits the block (not the loop, if any)
         if (breakLabel != null && !breakLabel.isEmpty()) {
-            if (currentBlock != null && breakLabel.equals(currentBlock.label) && currentLoop == null) {
-                // Breaking out of the immediately enclosing block (no loop in between) - use unlabeled break
+            if (currentBlock != null && breakLabel.equals(currentBlock.label)) {
+                // Breaking out of the immediately enclosing block - use unlabeled break
                 result.add(new BreakStatement(currentBlock.labelId));
             } else {
                 result.add(new BreakStatement(breakLabel, breakLabelId));
