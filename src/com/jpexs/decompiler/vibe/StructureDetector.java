@@ -5183,8 +5183,7 @@ public class StructureDetector {
                     return result;
                 }
                 // If false branch is not an if, fall through to other handlers
-                // but use effectiveMerge as the stopAt for subsequent processing
-                stopAt = effectiveMerge;
+                // Note: We don't modify stopAt here as it would affect subsequent processing incorrectly
             }
             
             // B) If true branch ends with break/continue, flatten the else
@@ -5311,7 +5310,11 @@ public class StructureDetector {
                 List<Node> falsePath = findPathToTarget(ifStruct.falseBranch, falseBranchTarget.target, ifConditions);
                 if (falseBranchTarget.isLabeledBlockBreak && currentBlock != null && 
                     falseBranchTarget.target.equals(currentBlock.endNode)) {
+                    // Output nodes in falsePath, but stop at stopAt if set
                     for (Node n : falsePath) {
+                        if (stopAt != null && n.equals(stopAt)) {
+                            break;  // Don't output this node or any after it
+                        }
                         result.add(new ExpressionStatement(n));
                     }
                 } else {
