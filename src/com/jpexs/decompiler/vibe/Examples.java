@@ -543,6 +543,30 @@ public class Examples {
         );
         /*
         Expected output:
+         
+        start;
+        if (!if1) {
+            if (!if2) {
+                if (!if3) {
+                    if (!if4) {
+                        d;
+                    } else {
+                        case4;
+                    }
+                } else {
+                    case3;
+                }
+            } else {
+                case2;
+            }
+        } else {
+            case1;
+        }
+        end;
+        */
+        
+        /*
+        Code with switches:
         
         start;
         switch {
@@ -562,7 +586,7 @@ public class Examples {
                 d;                
         }
         end;
-         */
+        */
 
         // Example 12: Switch with fall-through, merged cases, and nested if-else
         System.out.println();
@@ -601,13 +625,47 @@ public class Examples {
         Expected output:
         
         start;
-        switch {
-            case if1:
+        block_0: {
+            if (!if1) {
+                if (!if2) {
+                    if (!if3) {
+                        if (!if4) {
+                            if (!if5) {
+                                d;
+                                break;
+                            }
+                        }
+                        case45;
+                        break;
+                    }
+                } else {
+                    case2;
+                }
+                case3;
+            } else {
                 case1;
                 if (!n) {
                     b;
                 } else {
                     a;
+                }
+                c;
+            }
+        }
+        end;
+        */
+        
+        /*
+        Code with switches:
+        
+        start;
+        switch {
+            case if1:
+                case1;
+                if(n) {
+                    a;
+                } else {
+                    b;
                 }
                 c;
                 break;
@@ -621,7 +679,7 @@ public class Examples {
                 case45;
                 break;
             default:
-                d;                
+                d;        
         }
         end;
         */
@@ -677,6 +735,55 @@ public class Examples {
             if (cond) {
                 break;
             }
+            block_1: {
+                if (!if1) {
+                    if (!if2) {
+                        if (!if3) {
+                            if (!if4) {
+                                if (!if5) {
+                                    d;
+                                    break;
+                                }
+                            }
+                            case45;
+                            break;
+                        }
+                    } else {
+                        case2;
+                    }
+                    case3;
+                } else {
+                    case1;
+                    if(!n) {
+                        b;
+                    } else {
+                        a;
+                    }           
+                    c;
+                    if (m) {
+                       break loop_0;
+                    }
+                    t;
+                    if (v) {
+                        x;
+                        continue loop_0;
+                    }
+                    w;
+                }
+            }
+            sw_end;
+        }
+        end;
+        */
+        
+        /*
+        Code with switches:
+        
+        start;
+        loop_0: while(true) {
+            if (cond) {
+                break;
+            }
             switch {
                 case if1:
                     case1;
@@ -691,7 +798,8 @@ public class Examples {
                     }
                     t;
                     if (v) {
-                        break loop_0;
+                        x;
+                        continue loop_0;
                     }
                     w;
                     break;
@@ -933,6 +1041,41 @@ public class Examples {
         );
         /*
         Expected output:
+        
+        start;
+        block_0: {
+            if (!if1) {
+                if (!if2) {
+                    if (!if3) {
+                        if (!if4) {
+                            d;
+                        } else {
+                            case4;
+                        }
+                    } else {
+                        case3;
+                    }
+                } else {
+                    case2;
+                    while(true) {
+                        if (h) {
+                            break;
+                        }
+                        if (g) {
+                            break block_0;
+                        }
+                    }
+                    i;
+                }
+            } else {
+                case1;
+            }
+        }
+        end;
+        */
+        
+        /*
+        Code with switches:
         
         start;
         loop_0:switch {
@@ -1413,6 +1556,43 @@ public class Examples {
         );
         /*
         Expected output:
+        
+        start;
+        loc0000;
+        while(true) {
+            if (loc0050) {
+                break;
+            }
+            block_1: {
+                if (!loc0065) {
+                    if (!loc0081) {
+                        if (!loc0091) {
+                            if (loc00a1) {
+                                if (!loc00d7) {
+                                    break;
+                                }
+                                loc00f1; 
+                            }
+                            loc00f7;
+                        } else {
+                            loc00cc;
+                        }
+                    } else {
+                        loc00c1;
+                    }
+                    loc00fd;
+                } else {
+                    loc00b6;
+                }
+            }
+            loc0103;            
+        }
+        loc0112;
+        loc0113;
+        
+        */
+        /*
+        Code with switches:
         
         start;
         loc0000;
