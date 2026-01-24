@@ -543,6 +543,30 @@ public class Examples {
         );
         /*
         Expected output:
+         
+        start;
+        if (!if1) {
+            if (!if2) {
+                if (!if3) {
+                    if (!if4) {
+                        d;
+                    } else {
+                        case4;
+                    }
+                } else {
+                    case3;
+                }
+            } else {
+                case2;
+            }
+        } else {
+            case1;
+        }
+        end;
+        */
+        
+        /*
+        Code with switches:
         
         start;
         switch {
@@ -562,7 +586,7 @@ public class Examples {
                 d;                
         }
         end;
-         */
+        */
 
         // Example 12: Switch with fall-through, merged cases, and nested if-else
         System.out.println();
@@ -630,6 +654,35 @@ public class Examples {
         }
         end;
         */
+        
+        /*
+        Code with switches:
+        
+        start;
+        switch {
+            case if1:
+                case1;
+                if(n) {
+                    a;
+                } else {
+                    b;
+                }
+                c;
+                break;
+            case if2:
+                case2;
+            case if3:
+                case3;
+                break;
+            case if4:
+            case if5:
+                case45;
+                break;
+            default:
+                d;        
+        }
+        end;
+        */
 
         // Example 13: Loop with switch inside and labeled break/continue
         System.out.println();
@@ -682,6 +735,55 @@ public class Examples {
             if (cond) {
                 break;
             }
+            block_1: {
+                if (!if1) {
+                    if (!if2) {
+                        if (!if3) {
+                            if (!if4) {
+                                if (!if5) {
+                                    d;
+                                    break;
+                                }
+                            }
+                            case45;
+                            break;
+                        }
+                    } else {
+                        case2;
+                    }
+                    case3;
+                } else {
+                    case1;
+                    if(n) {
+                        a;
+                    } else {
+                        b;
+                    }           
+                    c;
+                    if (m) {
+                       break loop_0;
+                    }
+                    t;
+                    if (v) {
+                        x;
+                        continue loop_0;
+                    }
+                    w;
+                }
+            }
+            sw_end;
+        }
+        end;
+        */
+        
+        /*
+        Code with switches:
+        
+        start;
+        loop_0: while(true) {
+            if (cond) {
+                break;
+            }
             switch {
                 case if1:
                     case1;
@@ -696,7 +798,8 @@ public class Examples {
                     }
                     t;
                     if (v) {
-                        break loop_0;
+                        x;
+                        continue loop_0;
                     }
                     w;
                     break;
