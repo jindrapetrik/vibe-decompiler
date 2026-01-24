@@ -559,8 +559,7 @@ public class Examples {
                 case4;
                 break;
             default:
-                d;
-                break;
+                d;                
         }
         end;
          */
@@ -622,8 +621,7 @@ public class Examples {
                 case45;
                 break;
             default:
-                d;
-                break;
+                d;                
         }
         end;
         */
@@ -707,8 +705,7 @@ public class Examples {
                     case45;
                     break;
                 default:
-                    d;
-                    break;
+                    d;                    
             }
             sw_end;
         }
@@ -961,8 +958,7 @@ public class Examples {
                 case4;
                 break;
             default:
-                d;
-                break;
+                d;                
         }
         end;
         */
@@ -1482,6 +1478,195 @@ public class Examples {
         }
         loc007b;
         loc007c;
+        */
+        
+        // Example 30: Loop with if-then merged to condition with break
+        runExample("Example 30: Loop with if-then merged to condition with break",
+            "digraph pcode {\n" +
+            "start -> loc0000;\n" +
+            "loc0032 -> loc0058;\n" +
+            "loc0032 -> loc0048;\n" +
+            "loc0077 -> loc008e;\n" +
+            "loc0048 -> loc0058;\n" +
+            "loc0000 -> loc0032;\n" +
+            "loc0058 -> loc0077;\n" +
+            "loc0058 -> loc005e;\n" +
+            "loc005e -> loc0032;\n" +
+            "}"
+        );
+        /*
+        Expected output:
+        
+        start;
+        loc0000;
+        while(true) {
+            if (!loc0032) {
+                loc0048;
+            }
+            if (loc0058) {
+                break;
+            }
+            loc005e;
+        }
+        loc0077;
+        loc008e;
+        */
+        
+        // Example 31: Loop header with labeled block and skip pattern
+        runExample("Example 31: Loop header with labeled block and skip pattern",
+            "digraph pcode {\n" +
+            "start -> loc0000;\n" +
+            "loc0078 -> loc007e;\n" +
+            "loc007e -> loc0037;\n" +
+            "loc007e -> loc00a3;\n" +
+            "loc004c -> loc0072;\n" +
+            "loc004c -> loc0067;\n" +
+            "loc0000 -> loc0037;\n" +
+            "loc0067 -> loc007e;\n" +
+            "loc0037 -> loc0078;\n" +
+            "loc0037 -> loc004c;\n" +
+            "loc00a3 -> loc00aa;\n" +
+            "loc0072 -> loc0078;\n" +
+            "}"
+        );
+        /*
+        Expected output:
+        
+        start;
+        loc0000;
+        while(true) {
+            block_1: {
+                if(!loc0037) {
+                    if (!loc004c) {
+                        loc0067;
+                        break;
+                    }
+                    loc0072;
+                }
+                loc0078;
+            }
+            if (!loc007e) {
+                break;
+            }
+        }
+        loc00a3;
+        loc00aa;
+        */
+        
+        // Example 32: Loop header with labeled block and skip pattern (variant)
+        runExample("Example 32: Loop header with labeled block and skip pattern (variant)",
+            "digraph pcode {\n" +
+            "start -> loc0000;\n" +
+            "loc0075 -> loc0081;\n" +
+            "loc0081 -> loc008b;\n" +
+            "loc00bb -> loc00c2;\n" +
+            "loc0055 -> loc0075;\n" +
+            "loc0055 -> loc008b;\n" +
+            "loc008b -> loc0039;\n" +
+            "loc008b -> loc00bb;\n" +
+            "loc0000 -> loc0039;\n" +
+            "loc0039 -> loc0081;\n" +
+            "loc0039 -> loc0055;\n" +
+            "}"
+        );
+        /*
+        Expected output:
+        
+        start;
+        loc0000;
+        while(true) {
+            block_1: {
+                if (!loc0039) {
+                    if (!loc0055) {
+                        break;
+                    }
+                    loc0075;
+                }
+                loc0081;
+            }
+            if (!loc008b) {
+                break;
+            }
+        }
+        loc00bb;
+        loc00c2;
+        */
+        
+        // Example 33: Switch with default in middle (case and default share body)
+        runExample("Example 33: Switch with default in middle position",
+            "digraph pcode {\n" +
+            "start -> loc0000;\n" +
+            "loc009c -> loc00a2;\n" +
+            "loc00a2 -> loc00a9;\n" +
+            "loc0066 -> loc0091;\n" +
+            "loc0066 -> loc0076;\n" +
+            "loc0076 -> loc009c;\n" +
+            "loc0076 -> loc008b;\n" +
+            "loc0000 -> loc008b;\n" +
+            "loc0000 -> loc0066;\n" +
+            "loc008b -> loc0091;\n" +
+            "loc0091 -> loc00a2;\n" +
+            "loc0000[_operator=\"===\"];\n" +
+            "loc0066[_operator=\"===\"];\n" +
+            "loc0076[_operator=\"===\"];\n" +
+            "}"
+        );
+        /*
+        Expected output:
+        
+        start;
+        switch {
+            case loc0000:
+            default:
+                loc008b;
+            case loc0066:
+                loc0091;
+                break;
+            case loc0076:
+                loc009c;
+        }
+        loc00a2;
+        loc00a9;
+        */
+        
+        // Example 34: Switch with default before case (default falls through to case body)
+        runExample("Example 34: Switch with default falling through to case body",
+            "digraph pcode {\n" +
+            "start -> loc0000;\n" +
+            "loc009c -> loc00ad;\n" +
+            "loc00a7 -> loc00ad;\n" +
+            "loc0066 -> loc009c;\n" +
+            "loc0066 -> loc0076;\n" +
+            "loc00ad -> loc00b4;\n" +
+            "loc0076 -> loc00a7;\n" +
+            "loc0076 -> loc0096;\n" +
+            "loc0000 -> loc008b;\n" +
+            "loc0000 -> loc0066;\n" +
+            "loc008b -> loc00ad;\n" +
+            "loc0096 -> loc009c;\n" +
+            "loc0000[_operator=\"===\"];\n" +
+            "loc0066[_operator=\"===\"];\n" +
+            "loc0076[_operator=\"===\"];\n" +
+            "}"
+        );
+        /*
+        Expected output:
+        
+        start;
+        switch {
+            case loc0000:
+                loc008b;
+                break;
+            default:
+                loc0096;
+            case loc0066:
+                loc009c;
+                break;
+            case loc0076:
+                loc00a7;
+        }
+        loc00ad;
+        loc00b4;
         */
     }
 }
